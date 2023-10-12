@@ -1,0 +1,2 @@
+- [x] particle injector must be updated to use particleWrapper to add particles
+- [ ] test in a small problem

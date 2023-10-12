@@ -1,0 +1,8 @@
+__pycache__/
+.ipynb_checkpoints/
+diags/
+.nvimlog
+Backtrace*
+*.log
+slurm*
+warpx_used_inputs
