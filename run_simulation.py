@@ -26,15 +26,15 @@ sim_ext = simulation.extension
 #######################################################################
 params = Params()
 # domain size in m
-# params.Lx = 0.03
+# params.Lr = 0.03
 # params.Lz = 0.10
-params.Lx = 3e-5
+params.Lr = 3e-5
 params.Lz = 1e-4
 
 # spatial resolution in number of cells
-# params.Nx = int(2**13)
+# params.Nr = int(2**13)
 # params.Nz = int(2**15)
-params.Nx = int(2**4)
+params.Nr = int(2**4)
 params.Nz = int(2**5)
 
 # mirror ratio
@@ -65,13 +65,13 @@ params.crossing_times = 8
 # End global user parameters and user input                           #
 #######################################################################
 
+
 class MagneticMirror2D(object):
     def __init__(self):
         # the initial electron density is calculated to give the desired ratio
         # of plasma to cyclotron frequency
-        params.n0 = (
-            (params.w_pe_to_w_ce * params.B_max / util.constants.c)**2
-            / ( util.constants.mu_0 * util.constants.m_e)
+        params.n0 = (params.w_pe_to_w_ce * params.B_max / util.constants.c) ** 2 / (
+            util.constants.mu_0 * util.constants.m_e
         )
 
         # calculate the electron temperature to get the desired beta in the
@@ -87,31 +87,34 @@ class MagneticMirror2D(object):
         params.d_e = util.inertial_length(params.n0)
 
         # calculate the domain size in terms of electron inertial length, unit: m
-        # params.Lx = params.Lx * params.d_e
+        # params.Lr = params.Lr * params.d_e
         # params.Lz = params.Lz * params.d_e
-        
-        params.dx = params.Lx / params.Nx
+
+        params.dr = params.Lr / params.Nr
         params.dz = params.Lz / params.Nz
 
         # the given mirror ratio can only be achieved with the given Lz and
         # B_max for a unique coil radius
-        params.R_coil = 0.5 * params.Lz / np.sqrt(params.R**(2.0/3.0) - 1.0)
+        params.R_coil = 0.5 * params.Lz / np.sqrt(params.R ** (2.0 / 3.0) - 1.0)
         self.coil = magnetic_field.CoilBField(R=params.R_coil, B_max=params.B_max)
-        # self.coil.plot_field(params.Lx/2.0/params.R_coil, params.Lz/2.0/params.R_coil)
+        # self.coil.plot_field(params.Lr/2.0/params.R_coil, params.Lz/2.0/params.R_coil)
 
         # calculate electron plasma frequency
         params.w_pe = util.plasma_freq(params.n0)
 
         # params.dt = 0.07 / w_pe
         # simulation timestep from electron CFL
-        params.dt = params.dz / (5.0 * util.thermal_velocity(params.Te, util.constants.m_e))
+        params.dt = params.dz / (
+            5.0 * util.thermal_velocity(params.Te, util.constants.m_e)
+        )
 
         # calculate the ion crossing time to get the total simulation time
-        params.ion_crossing_time = params.Lz / \
-            util.thermal_velocity(params.Ti, params.m_ion)
-        params.total_steps = int(np.ceil(
-            params.crossing_times * params.ion_crossing_time / params.dt
-        ))
+        params.ion_crossing_time = params.Lz / util.thermal_velocity(
+            params.Ti, params.m_ion
+        )
+        params.total_steps = int(
+            np.ceil(params.crossing_times * params.ion_crossing_time / params.dt)
+        )
         params.diag_steps = int(params.total_steps / 20.0)
 
         # for debug use
@@ -119,13 +122,15 @@ class MagneticMirror2D(object):
         params.diag_steps = 10
 
         # calculate the flux from the thermal plasma reservoir
-        # params.flux_e = (
-        #     params.n0 * util.thermal_velocity(params.Te) / np.sqrt(2.0 * np.pi)
-        # )
-        # params.flux_i = params.flux_e * np.sqrt(util.constants.m_e / params.m_ion)
-        params.flux_i = (
-            params.n0 * util.thermal_velocity(params.Ti, params.m_ion)
+        params.flux_e = (
+            params.n0
+            * util.thermal_velocity(params.Te, util.constants.m_e)
+            / np.sqrt(2.0 * np.pi)
         )
+        params.flux_i = params.flux_e * np.sqrt(util.constants.m_e / params.m_ion)
+        # params.flux_i = (
+        #     params.n0 * util.thermal_velocity(params.Ti, params.m_ion)
+        # )
 
         # sanity checks
         # check spatial resolution
@@ -141,27 +146,25 @@ class MagneticMirror2D(object):
         # assert np.isclose(params.coil.get_B_field(0, params.Lz/2.0)[1], B_min)
         # w_ce = util.cyclotron_freq(util.constants.m_e, params.B_max)
         # assert np.isclose(w_pe / w_ce, params.w_pe_to_w_ce)
-        
+
         if comm.rank == 0:
             print("Starting simulation with parameters:\n", params)
         self.simulation_setup()
 
     def simulation_setup(self):
-
         #######################################################################
         # Set geometry, boundary conditions and timestep                      #
         #######################################################################
 
         self.grid = picmi.CylindricalGrid(
-            number_of_cells=[params.Nx, params.Nz],
+            number_of_cells=[params.Nr, params.Nz],
             warpx_max_grid_size=params.Nz,
-            lower_bound=[0, -params.Lz/2.0],
-            upper_bound=[params.Lx, params.Lz/2.0],
-            # lower_boundary_conditions=['neumann', 'dirichlet'],
-            lower_boundary_conditions=['none', 'dirichlet'],
-            upper_boundary_conditions=['neumann', 'dirichlet'],
-            lower_boundary_conditions_particles=['reflecting', 'absorbing'],
-            upper_boundary_conditions_particles=['absorbing', 'absorbing'],
+            lower_bound=[0, -params.Lz / 2.0],
+            upper_bound=[params.Lr, params.Lz / 2.0],
+            lower_boundary_conditions=["none", "dirichlet"],
+            upper_boundary_conditions=["neumann", "dirichlet"],
+            lower_boundary_conditions_particles=["reflecting", "absorbing"],
+            upper_boundary_conditions_particles=["absorbing", "absorbing"],
         )
         simulation.time_step_size = params.dt
         simulation.max_steps = params.total_steps
@@ -173,10 +176,10 @@ class MagneticMirror2D(object):
 
         self.solver = picmi.ElectrostaticSolver(
             grid=self.grid,
-            method='Multigrid',
+            method="Multigrid",
             required_precision=1e-6,
             # higher the number, more verbose it is (default 2)
-            warpx_self_fields_verbosity=0
+            warpx_self_fields_verbosity=0,
         )
         simulation.solver = self.solver
 
@@ -184,7 +187,7 @@ class MagneticMirror2D(object):
             picmi.AnalyticAppliedField(
                 Bx_expression=self.coil.get_Bx_expression(),
                 By_expression=0.0,
-                Bz_expression=self.coil.get_Bz_expression()
+                Bz_expression=self.coil.get_Bz_expression(),
             )
         ]
 
@@ -192,35 +195,37 @@ class MagneticMirror2D(object):
         # Particle types setup                                                #
         #######################################################################
 
-        # self.electrons = picmi.Species(
-        #     particle_type='electron', name='electrons',
-        #     # warpx_save_particles_at_zlo=True,
-        #     # warpx_save_particles_at_zhi=True,
-        #     initial_distribution=picmi.UniformDistribution(
-        #         density=params.n0,
-        #         rms_velocity=[util.thermal_velocity(params.Te)]*3,
-        #     )
-        # )
-        # self.electrons.m = util.constants.m_e
+        self.electrons = picmi.Species(
+            particle_type="electron",
+            name="electrons",
+            # warpx_save_particles_at_zlo=True,
+            # warpx_save_particles_at_zhi=True,
+            initial_distribution=picmi.UniformDistribution(
+                density=params.n0,
+                rms_velocity=[util.thermal_velocity(params.Te, util.constants.m_e)] * 3,
+            ),
+        )
+        self.electrons.m = util.constants.m_e
 
         self.ions = picmi.Species(
-            particle_type='H', name='ions', charge_state=1,
+            particle_type="H",
+            name="ions",
+            charge_state=1,
             mass=params.m_ion,
             # warpx_save_particles_at_zlo=True,
             # warpx_save_particles_at_zhi=True,
             initial_distribution=picmi.UniformDistribution(
                 density=params.n0,
-                rms_velocity=[util.thermal_velocity(params.Ti, params.m_ion)]*3,
-            )
+                rms_velocity=[util.thermal_velocity(params.Ti, params.m_ion)] * 3,
+            ),
         )
         self.ions.m = params.m_ion
 
         layout = picmi.PseudoRandomLayout(
-            n_macroparticles_per_cell=params.nppc_seed,
-            grid=self.grid
+            n_macroparticles_per_cell=params.nppc_seed, grid=self.grid
         )
 
-        # simulation.add_species(self.electrons, layout=layout)
+        simulation.add_species(self.electrons, layout=layout)
         simulation.add_species(self.ions, layout=layout)
 
         #######################################################################
@@ -229,27 +234,39 @@ class MagneticMirror2D(object):
 
         # nparts_e = 400000 // comm.size
         nparts_e = 4000 // comm.size
-        weight_e = (
-            params.flux_e * params.dt * params.Lx / (nparts_e * comm.size)
-        )
+        weight_e = params.flux_e * params.dt * params.Lr / (nparts_e * comm.size)
         self.electron_injector = injector.FluxMaxwellian_ZInjector(
-            species=self.electrons, T=params.Te,
-            weight=weight_e, nparts=nparts_e,
-            plane_z=-params.Lz/2.0+1e9, xmin=-params.Lx/2.0, xmax=params.Lx/2.0,
-            ymin=-1e-6, ymax=1e-6
-        )
-        
-        nparts_i = nparts_e
-        weight_i = (
-            params.flux_i * params.dt * params.Lx / (nparts_i * comm.size)
+            species=self.electrons,
+            T=params.Te,
+            weight=weight_e,
+            nparts=nparts_e,
+            # plane_z=-params.Lz / 2.0 + 1e9,
+            zmin=-params.Lz / 3.0 + 1.5 * params.dz,
+            zmax=-params.Lz / 2.0 + 3.0 * params.dz,
+            # xmin=-params.Lr / 2.0,
+            # xmax=params.Lr / 2.0,
+            # ymin=-1e-6,
+            # ymax=1e-6,
+            rmin=0,
+            rmax=params.Lr / 2,
         )
 
+        nparts_i = nparts_e
+        weight_i = params.flux_i * params.dt * params.Lr / (nparts_i * comm.size)
+
         self.ion_injector = injector.FluxMaxwellian_ZInjector(
-            species=self.ions, T=params.Ti,
-            weight=weight_i, nparts=nparts_i,
-            zmin=-params.Lz/2.+1.5*params.dz, zmax=-params.Lz/2.+3.0*params.dz,
-            xmin=-params.Lx/2.0, xmax=params.Lx/2.0,
-            ymin=-1e-6, ymax=1e-6
+            species=self.ions,
+            T=params.Ti,
+            weight=weight_i,
+            nparts=nparts_i,
+            zmin=-params.Lz / 2.0 + 1.5 * params.dz,
+            zmax=-params.Lz / 2.0 + 3.0 * params.dz,
+            # xmin=-params.Lr / 2.0,
+            # xmax=params.Lr / 2.0,
+            # ymin=-1e-6,
+            # ymax=1e-6,
+            rmin=0,
+            rmax=params.Lr / 2,
         )
 
         callbacks.installparticleinjection(self.electron_injector.inject_parts)
@@ -264,11 +281,6 @@ class MagneticMirror2D(object):
         callbacks.installafterstep(self.phi_diag)
         callbacks.installafterstep(self.rho_diag)
 
-        # make a grid for plotting potential and densities
-        # x = np.linspace(-params.Lx/2.0/params.d_e, params.Lx/2.0/params.d_e, params.Nx+1)
-        # z = np.linspace(-params.Lz/2.0/params.d_e, params.Lz/2.0/params.d_e, params.Nz+1)
-        # params.z_grid, params.x_grid = np.meshgrid(z, x)
-
         #######################################################################
         # Initialize run and print diagnostic info                            #
         #######################################################################
@@ -278,11 +290,11 @@ class MagneticMirror2D(object):
 
     def _create_diags_dir(self):
         if sim_ext.getMyProc() == 0:
-            if os.path.exists('diags'):
-                shutil.rmtree('diags')
-            os.mkdir('diags')
-            os.mkdir('diags/phi')
-            os.mkdir('diags/rho')
+            if os.path.exists("diags"):
+                shutil.rmtree("diags")
+            os.mkdir("diags")
+            os.mkdir("diags/phi")
+            os.mkdir("diags/rho")
 
         params.save("diags/params.json")
         self.phi_wrapper = fields.PhiFPWrapper(0, False)
@@ -297,18 +309,19 @@ class MagneticMirror2D(object):
         wall_time = time.time() - self.prev_time
         steps = step - self.prev_step
         step_rate = steps / wall_time
-        
-        # electrons = particle_containers.ParticleContainerWrapper('electrons')
-        ions = particle_containers.ParticleContainerWrapper('ions')
+
+        self.electron_wrapper = particle_containers.ParticleContainerWrapper(
+            "electrons"
+        )
+        self.ion_wrapper = particle_containers.ParticleContainerWrapper("ions")
         status_dict = {
-            'step': step,
-            # electrons.get_particle_count('electrons', False),
-            'nplive_electrons': 0.0,
-            'nplive_ions': ions.get_particle_count(False),
-            'wall_time': wall_time,
-            'step_rate': step_rate,
+            "step": step,
+            "nplive_electrons": self.electron_wrapper.get_particle_count(False),
+            "nplive_ions": self.ion_wrapper.get_particle_count(False),
+            "wall_time": wall_time,
+            "step_rate": step_rate,
             "diag_steps": params.diag_steps,
-            'iproc': None
+            "iproc": None,
         }
 
         diag_string = (
@@ -337,14 +350,16 @@ class MagneticMirror2D(object):
 
         np.save(f"diags/phi/phi_{step:08d}.npy", data)
 
-
     def rho_diag(self):
+        """Charge density"""
         step = sim_ext.getistep(0)
         if step % params.diag_steps != 0:
             return
 
         # sim_ext.depositChargeDensity("ions", 0)
         # data = self.rho_wrapper[...][:, :, 0] / util.constants.e / params.n0
+        # sim_ext.depositChargeDensity("ions", 0)
+        # sim_ext.depositChargeDensity("electrons", 0)
         data = self.rho_wrapper[...][:, :] / util.constants.e / params.n0
 
         if sim_ext.getMyProc() != 0:
@@ -353,7 +368,6 @@ class MagneticMirror2D(object):
         np.save(f"diags/rho/rho_{step:08d}.npy", data)
 
     def run_sim(self):
-
         self.prev_time = time.time()
         self.start_time = self.prev_time
         self.prev_step = 0

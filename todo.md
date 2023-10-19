@@ -1,2 +1,2 @@
-- [x] particle injector must be updated to use particleWrapper to add particles
+- [ ] injector inject particles in a disk area
 - [ ] test in a small problem

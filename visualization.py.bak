@@ -10,18 +10,14 @@ def phi_diag(params: Params, file_path: str):
     data = np.load(file_path)
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8.5, 5))
-    # smooth out r = 0 data by taking average from r=0 to r=1/10
-    dr = params.dr
-    r = np.arange(0, 5 * dr, dr)
-    r_along_z = np.repeat(r, params.Nz + 1).reshape(5, -1)
     ax1.plot(
         np.linspace(-0.5, 0.5, params.Nz + 1),
-        np.sum(2 * r_along_z * dr * data[:5, :] / (4 * dr), axis=0),
-        label="r=0",
+        np.mean(data[params.Nx // 2 - 5 : params.Nx // 2 + 5], axis=0),
+        label="x=0",
     )
     # ax1.plot(
     #     np.linspace(-params.Lz/2.0/params.d_e, params.Lz/2.0/params.d_e, params.Nz+1),
-    #     data[params.Nr//8], label=f'x={(-7.0/16.0)*params.Lr/params.d_e:.2f}$d_e$'
+    #     data[params.Nx//8], label=f'x={(-7.0/16.0)*params.Lx/params.d_e:.2f}$d_e$'
     # )
     ax1.legend()
     ax1.grid()
@@ -43,14 +39,14 @@ def phi_diag(params: Params, file_path: str):
         origin="lower",
         norm=norm,
         extent=[
-            # -params.Lr/2.0/params.d_e, params.Lr/2.0/params.d_e,
-            0,
+            # -params.Lx/2.0/params.d_e, params.Lx/2.0/params.d_e,
+            -0.5,
             0.5,
             -0.5,
             0.5,
         ],
     )
-    ax2.set_xlabel("r/$L_r$")
+    ax2.set_xlabel("x/$L_x$")
     ax2.set_ylabel("z/$L_z$")
     bar = plt.colorbar(m, ax=ax2)
     bar.set_label("e$\phi/T_e$")
@@ -64,37 +60,32 @@ def rho_diag(params: Params, file_path: str):
     data = np.load(file_path)
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8.5, 5))
-    # smooth out r = 0 data by taking average from r=0 to r=1/10
-    dr = params.dr
-    r = np.arange(0, 5 * dr, dr)
-    r_along_z = np.repeat(r, params.Nz + 1).reshape(5, -1)
     ax1.plot(
         np.linspace(-0.5, 0.5, params.Nz + 1),
-        # np.mean(data[params.Nr // 2 - 5 : params.Nr // 2 + 5], axis=0),
-        np.sum(2 * r_along_z * dr * data[:5, :] / (4 * dr), axis=0),
-        label="r=0",
+        np.mean(data[params.Nx // 2 - 5 : params.Nx // 2 + 5], axis=0),
+        label="x=0",
     )
     ax1.plot(
         np.linspace(-0.5, 0.5, params.Nz + 1),
-        data[params.Nr // 8],
-        label=f"r={(1 / 8):.2f}$L_r$",
+        data[params.Nx // 8],
+        label=f"x={(-7.0/16.0):.2f}$L_x$",
     )
     ax1.grid()
     ax1.legend()
     ax1.set_xlabel("z/$L_z$")
-    ax1.set_ylabel("$n/n_0$")
+    ax1.set_ylabel("$n_i/n_0$")
 
     m = ax2.imshow(
         data.T,
         cmap="Greens",
         aspect="equal",
         origin="lower",
-        extent=[0, 0.5, -0.5, 0.5],
+        extent=[-0.5, 0.5, -0.5, 0.5],
     )
-    ax2.set_xlabel("r/$L_r$")
+    ax2.set_xlabel("x/$L_x$")
     ax2.set_ylabel("z/$L_z$")
     bar = plt.colorbar(m, ax=ax2)
-    bar.set_label("$n/n_0$")
+    bar.set_label("$n_i/n_0$")
 
     plt.tight_layout()
     plt.savefig(os.path.splitext(file_path)[0] + ".png")
