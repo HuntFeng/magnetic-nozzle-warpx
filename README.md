@@ -13,10 +13,17 @@ module load NiaEnv/2019b gcc/8.3.0 intelmpi/2019u5 python/3.9.8
 ```
 virtualenv --system-site-packages $HOME/.venvs/warpx
 source $HOME/.venvs/warpx/bin/activate
+pip install cmake mpi4py numpy scipy tqdm matplotlib jupyter yt
+```
+- if `mpi4py` installation is not okay, remove the pip cache and reinstall it.
+```
+pip unstall mpi4py
+pip cache remove mpi4py
+pip install mpi4py
 ```
 
 ### Compile warpx
-Clone the repo first, we are using version 23.09
+Clone the repo first, we are using version 23.11
 ```
 https://github.com/ECP-WarpX/WarpX
 ```

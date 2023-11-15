@@ -1,0 +1,18 @@
+#!/bin/bash
+
+mpi_tasks=32
+
+## Ask for nodes on the cluster
+#SBATCH --nodes=1
+## Ask for MPI tasks
+#SBATCH --ntasks=$mpi_tasks
+## Ste a run time limit
+#SBATCH --time=2:00:00
+# sends mail when process ends. Make sure you define your email 
+#SBATCH --mail-type=end 
+#SBATCH --mail-user=hunt.feng@usask.ca 
+
+cd $SCRATCH/magnetic-nozzle-warpx
+source warpx.profile 
+source $HOME/.venvs/warpx/bin/activate
+mpirun -np $mpi_tasks python run_simulation.py >& output-np=$mpi_tasks.log

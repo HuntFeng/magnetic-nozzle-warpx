@@ -6,3 +6,4 @@ Backtrace*
 *.log
 slurm*
 warpx_used_inputs
+diags*/

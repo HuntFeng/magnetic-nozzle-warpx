@@ -45,8 +45,8 @@ class FluxMaxwellian_ZInjector(object):
     def inject_parts(self):
         """Function to actually inject the simulation particles."""
         # generate random positions for each particle
-        r = self.rmax * np.sqrt(np.random.uniform(self.rmin, self.rmax, self.nparts))
-        theta = np.random.uniform(self.rmin, self.rmax, self.nparts) * 2 * np.pi
+        r = self.rmax * np.sqrt(np.random.rand(self.nparts))
+        theta = 2 * np.pi * np.random.rand(self.nparts)
         x_pos = r * np.cos(theta)
         y_pos = r * np.sin(theta)
         z_pos = np.random.uniform(self.zmin, self.zmax, self.nparts)

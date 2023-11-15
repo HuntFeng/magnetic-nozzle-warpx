@@ -38,17 +38,11 @@ def phi_diag(params: Params, file_path: str):
 
     m = ax2.imshow(
         data.T,
-        cmap="RdBu",
+        cmap="coolwarm",
         aspect="equal",
         origin="lower",
         norm=norm,
-        extent=[
-            # -params.Lr/2.0/params.d_e, params.Lr/2.0/params.d_e,
-            0,
-            0.5,
-            -0.5,
-            0.5,
-        ],
+        extent=[0, 1, -0.5, 0.5],
     )
     ax2.set_xlabel("r/$L_r$")
     ax2.set_ylabel("z/$L_z$")
@@ -82,19 +76,19 @@ def rho_diag(params: Params, file_path: str):
     ax1.grid()
     ax1.legend()
     ax1.set_xlabel("z/$L_z$")
-    ax1.set_ylabel("$n/n_0$")
+    ax1.set_ylabel("$\\rho/\\rho_0$")
 
     m = ax2.imshow(
         data.T,
-        cmap="Greens",
+        cmap="coolwarm",
         aspect="equal",
         origin="lower",
-        extent=[0, 0.5, -0.5, 0.5],
+        extent=[0, 1, -0.5, 0.5],
     )
     ax2.set_xlabel("r/$L_r$")
     ax2.set_ylabel("z/$L_z$")
     bar = plt.colorbar(m, ax=ax2)
-    bar.set_label("$n/n_0$")
+    bar.set_label("$\\rho/\\rho_0$")
 
     plt.tight_layout()
     plt.savefig(os.path.splitext(file_path)[0] + ".png")
