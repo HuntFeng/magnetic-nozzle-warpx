@@ -17,26 +17,28 @@ from params import Params
 
 comm = mpi.COMM_WORLD
 
-simulation = picmi.Simulation(verbose=0)
-# make a shorthand for simulation.extension since we use it a lot
-# sim_ext = simulation.extension
+simulation = picmi.Simulation(verbose=1)
 
 #######################################################################
 # Begin physical parameters                                           #
 #######################################################################
 params = Params()
 # domain size in m
-params.Lr = 0.03
+# params.Lr = 0.03
+params.Lr = 0.01  # has to be smaller than the coil radius
 params.Lz = 0.10
 
 # spatial resolution in number of cells
-params.Nr = 128
+params.Nr = 32
 params.Nz = 256
 # params.Nr = 16
 # params.Nz = 32
 
 # mirror ratio
-params.R = 5.0
+# R=2 -> coil radius=0.065
+# R=10 -> coil radius=0.026
+# R=100 -> coil radius=0.011
+params.R = 10.0
 params.B_max = 30.0  # T
 
 # use a reduced ion mass for faster simulations
@@ -54,7 +56,7 @@ params.nppc_seed = 5  # 800
 params.crossing_times = 1
 
 # diagnostics dir
-diags_dirname = f"diags{params.Nr}x{params.Nz}-crossing_time={params.crossing_times}"
+diags_dirname = f"diags{params.Nr}x{params.Nz}-1ict"
 #######################################################################
 # End global user parameters and user input                           #
 #######################################################################
@@ -66,8 +68,8 @@ class MagneticMirror2D(object):
         params.n0 = 1e16
 
         # temperature
-        params.Te = 400
-        params.Ti = params.Te
+        params.Te = 300
+        params.Ti = 600
 
         # domain size, unit: m
         params.dr = params.Lr / params.Nr
@@ -93,10 +95,10 @@ class MagneticMirror2D(object):
         params.total_steps = int(
             np.ceil(params.crossing_times * params.ion_crossing_time / params.dt)
         )
-        params.diag_steps = int(params.total_steps / 20.0)
+        # params.diag_steps = int(params.total_steps / 20.0)
 
         # for debug use
-        # params.total_steps = 1000
+        # params.total_steps = 5
         # params.diag_steps = 10
 
         # calculate the flux from the thermal plasma reservoir
@@ -112,8 +114,6 @@ class MagneticMirror2D(object):
         params.debye_length = util.debye_length(params.Te, params.n0)
         # assert params.dz < debye_length
 
-        if comm.rank == 0:
-            print("Starting simulation with parameters:\n", params)
         self.simulation_setup()
 
     def simulation_setup(self):
@@ -236,18 +236,25 @@ class MagneticMirror2D(object):
         self.field_diag = picmi.FieldDiagnostic(
             name="diag",
             grid=self.grid,
-            period=10,
-            data_list=["phi", "rho"],
+            period=50,
+            data_list=["phi", "rho_electrons", "rho_ions", "part_per_cell"],
             warpx_dump_rz_modes=1,
             write_dir=diags_dirname,
-            warpx_file_prefix="",
+        )
+        self.particle_diag = picmi.ParticleDiagnostic(
+            name="diag",
+            period=50,
+            species=[self.ions, self.electrons],
+            data_list=["momentum", "weighting"],
+            write_dir=diags_dirname,
         )
 
         callbacks.installafterinit(lambda: self._create_diags_dir(diags_dirname))
         # callbacks.installafterstep(self.phi_diag)
         # callbacks.installafterstep(self.rho_diag)
-        callbacks.installafterstep(self.text_diag)
+        # callbacks.installafterstep(self.text_diag)
         simulation.add_diagnostic(self.field_diag)
+        simulation.add_diagnostic(self.particle_diag)
 
         #######################################################################
         # Initialize run and print diagnostic info                            #

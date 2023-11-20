@@ -1,0 +1,3 @@
+- [x] plot the axis proile of rho and phi
+- [x] the magnetic field is not right, the coil radius is even smaller than the device radius
+- [x] add more diagnostics, number density of each species and velocity
