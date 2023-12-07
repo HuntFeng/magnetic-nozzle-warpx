@@ -54,7 +54,10 @@ class FluxMaxwellian_ZInjector(object):
         # sample a Gaussian for the x and y velocities
         vx_vals = np.random.normal(0, self.sigma, self.nparts)
         vy_vals = np.random.normal(0, self.sigma, self.nparts)
-        # vz_vals = np.abs(np.random.normal(0, self.sigma, self.nparts))
+        # we want the particles to have only positive vz values
+        # vz_vals = np.abs(np.random.normal(0, self.sigma, self.nparts)) is not okay
+        # since most of the particles will then have 0 vz
+        # use the random number generator for normal dist. but drop the cos(2*pi*rand) factor
         vz_vals = self.sigma * np.sqrt(-2.0 * np.log(1.0 - np.random.rand(self.nparts)))
 
         part_wrapper = particle_containers.ParticleContainerWrapper(self.species.name)

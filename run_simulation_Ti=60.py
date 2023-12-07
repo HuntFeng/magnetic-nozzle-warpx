@@ -69,7 +69,7 @@ class MagneticMirror2D(object):
 
         # temperature
         params.T_e = 300
-        params.T_i = 600
+        params.T_i = 60
 
         # domain size, unit: m
         params.dr = params.Lr / params.Nr

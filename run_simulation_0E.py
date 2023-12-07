@@ -13,6 +13,7 @@ from datetime import datetime
 import util
 import magnetic_field
 import injector
+from solver import NullElectroStaticSolver
 from params import Params
 
 comm = mpi.COMM_WORLD
@@ -140,14 +141,18 @@ class MagneticMirror2D(object):
         # Field solver and external field                                     #
         #######################################################################
 
-        self.solver = picmi.ElectrostaticSolver(
+        # simulation.solver = picmi.ElectrostaticSolver(
+        #     grid=self.grid,
+        #     method="Multigrid",
+        #     required_precision=1e-6,
+        #     # higher the number, more verbose it is (default 2)
+        #     warpx_self_fields_verbosity=1,
+        # )
+        simulation.solver = NullElectroStaticSolver(
             grid=self.grid,
             method="Multigrid",
             required_precision=1e-6,
-            # higher the number, more verbose it is (default 2)
-            warpx_self_fields_verbosity=1,
         )
-        simulation.solver = self.solver
 
         simulation.applied_fields = [
             picmi.AnalyticAppliedField(

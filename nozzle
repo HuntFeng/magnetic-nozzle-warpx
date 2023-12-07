@@ -1,12 +1,11 @@
 #!/bin/bash
 #SBATCH --nodes=1
-#SBATCH --ntasks=64
-#SBATCH --time=10:00:00
-#SBATCH --output=output-%j.log
+#SBATCH --ntasks-per-node=80
+#SBATCH --time=5:00:00
+#SBATCH --output=output-0E.log
 #SBATCH --mail-type=end 
 #SBATCH --mail-user=hunt.feng@usask.ca 
 
 cd $SCRATCH/magnetic-nozzle-warpx
 source warpx.profile 
-source $HOME/.venvs/warpx/bin/activate
-mpirun python run_simulation.py
+mpirun python run_simulation_0E.py

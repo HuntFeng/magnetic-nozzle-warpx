@@ -36,7 +36,7 @@ def cyclotron_freq(m: float, B: float):
 
 def thermal_velocity(T: float, m: float):
     """
-    thermal velocity of a species in 3d
+    thermal velocity of a species in 3d, unit: m/s
 
     using the definition of "the most probable speed"
     https://en.wikipedia.org/wiki/Thermal_velocity

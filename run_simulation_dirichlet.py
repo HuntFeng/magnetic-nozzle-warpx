@@ -127,7 +127,7 @@ class MagneticMirror2D(object):
             lower_bound=[0, -params.Lz / 2.0],
             upper_bound=[params.Lr, params.Lz / 2.0],
             lower_boundary_conditions=["none", "dirichlet"],
-            upper_boundary_conditions=["neumann", "neumann"],
+            upper_boundary_conditions=["dirichlet", "dirichlet"],
             lower_boundary_conditions_particles=["reflecting", "absorbing"],
             upper_boundary_conditions_particles=["absorbing", "absorbing"],
         )
