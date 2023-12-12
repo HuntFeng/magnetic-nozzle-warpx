@@ -38,7 +38,7 @@ params.Nz = 1600
 
 # mirror ratio
 # R and Bmax determine the coil radius
-params.R = 10.0
+params.R = 2.0
 params.B_max = 0.30  # T
 
 # use a reduced ion mass for faster simulations
@@ -70,7 +70,7 @@ class MagneticMirror2D(object):
 
         # temperature
         params.T_e = 300
-        params.T_i = 600
+        params.T_i = 1
 
         # domain size, unit: m
         params.dr = params.Lr / params.Nr
@@ -87,7 +87,7 @@ class MagneticMirror2D(object):
         # params.dt = params.dz / (
         #     5.0 * util.thermal_velocity(params.T_e, params.m_e)
         # )
-        params.dt = 0.5 / util.cyclotron_freq(params.m_e, params.B_max)
+        params.dt = 0.10 / util.cyclotron_freq(params.m_e, params.B_max)
 
         # calculate the ion crossing time to get the total simulation time
         params.ion_crossing_time = params.Lz / util.thermal_velocity(
@@ -99,8 +99,8 @@ class MagneticMirror2D(object):
         params.diag_steps = int(params.total_steps / 100)
 
         # for debug use
-        # params.total_steps = 10
-        # params.diag_steps = 2
+        params.total_steps = 10000
+        params.diag_steps = 100
 
         # calculate the flux from the thermal plasma reservoir
         params.flux_e = (

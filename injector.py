@@ -52,8 +52,9 @@ class FluxMaxwellian_ZInjector(object):
         z_pos = np.random.uniform(self.zmin, self.zmax, self.nparts)
 
         # sample a Gaussian for the x and y velocities
-        vx_vals = np.random.normal(0, self.sigma, self.nparts)
-        vy_vals = np.random.normal(0, self.sigma, self.nparts)
+        # 1/sqrt(2) is to make v_perp = v_thermal
+        vx_vals = np.random.normal(0, self.sigma, self.nparts) / np.sqrt(2)
+        vy_vals = np.random.normal(0, self.sigma, self.nparts) / np.sqrt(2)
         # we want the particles to have only positive vz values
         # vz_vals = np.abs(np.random.normal(0, self.sigma, self.nparts)) is not okay
         # since most of the particles will then have 0 vz

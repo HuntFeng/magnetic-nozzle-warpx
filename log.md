@@ -24,23 +24,25 @@ TODO:
 - [x] case 2: set 0 electric field and check if the particles follow the magnetic field correctly, there should be no spread. What causes the spread?
 - [x] case 3: don't change temperatures at all, but change the bc to all dirichlet
 
-### diags202312061235
+### diags202312071328
 INFO:
-1. set dimensions to 160x1600
-2. Ti=60eV
+1. dimensions to 160x1600
+2. set $dt = 0.1 / \omega_c$
+3. no electric field
 FIXME:
-1. simulation is too long to finish (estimated 47 hours for 0.5 ict using 80 cores)
+1. the spread is still wide
+TODO:
+1. [x] set Bmax = 200G
+2. [x] ion temperature 1ev
+3. [x] make electron larmor radius 1/50 of the system radius (and make sure ion is small as well)
 
-### diags202312061237
+### diags20201212
 INFO:
-1. set dimensions to 160x1600
-2. Dirichlet BCs
-FIXME:
-1. the potential is negative in the core region. Because we are injecting same number of electrons and ions every time step?
-
-### diags202312061915
-INFO:
-1. set dimensions to 160x1600
-2. no electric field
-FIXME:
-1. particles does not follow magnetic field lines
+1. dimensions to 160x1600
+2. set $dt = 0.1 / \omega_c$
+3. still keep Bmax = 0.3T (if setting it to 200G, larmor radius is still large)
+4. T_i = 1eV, T_e = 300eV
+5. set mirror ratio R=2, so that B is not too small at the two ends
+6. add 1/sqrt(2) in the vx, vy random numbers, so that v_perp = v_thermal
+7. larmor radius of both species ~ 1/50 of system radius
+8. Electric field is 0

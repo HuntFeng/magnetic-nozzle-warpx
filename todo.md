@@ -1,3 +1,1 @@
-- [ ] how does boris push work? 
-    - is it okay if time step is larger than one particle cycle period?
 - [ ] plot graphs with ghost cells and see if phi satisfies the bc

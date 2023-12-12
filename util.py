@@ -58,6 +58,18 @@ def debye_length(T: float, n: float):
     return 7430 * np.sqrt(T / n)
 
 
+def larmor_radius(m: float, v_perp: float, q: float, B: float):
+    """
+    Larmor radius of a particle in meter
+
+    m: mass in kg
+    v_perp: v_perp in m/s
+    q: charge in C
+    B: magnetic field strength in T
+    """
+    return m * v_perp / q / B
+
+
 """Postprocessing functions"""
 
 
