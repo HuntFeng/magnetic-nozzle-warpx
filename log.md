@@ -46,3 +46,6 @@ INFO:
 6. add 1/sqrt(2) in the vx, vy random numbers, so that v_perp = v_thermal
 7. larmor radius of both species ~ 1/50 of system radius
 8. Electric field is 0
+TODO:
+1. set the time step larger
+2. make the simulation longer

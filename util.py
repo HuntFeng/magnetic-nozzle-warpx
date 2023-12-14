@@ -90,8 +90,10 @@ def extract_data(filename):
     regex_step = re.compile(
         r"STEP [0-9]* ends.*\n.* Avg\. per step = ([0-9]*[.])?[0-9]+ s", re.MULTILINE
     )
-
-    string_data = []
+    regex_mlmg = re.compile(
+        r"MLMG: Final Iter.*\n.* Bottom = ([0-9]*[.])?[0-9]+", re.MULTILINE
+    )
+    regex_real = re.compile(r" -?[\d.]+(?:e-?\d+)?", re.MULTILINE)
     specs = {}
 
     print("Processing " + filename + " ...", end="")
@@ -99,14 +101,17 @@ def extract_data(filename):
         text = f.read()
         specs["cores"] = int(regex_core.search(text).group(1))
         specs["omp_threads"] = int(regex_omp.search(text).group(1))
-        string_data = [s.group(0) for s in regex_step.finditer(text)]
+        step_strings = [s.group(0) for s in regex_step.finditer(text)]
+        mlmg_strings = [s.group(0) for s in regex_mlmg.finditer(text)]
 
-    regex_real = re.compile(r" -?[\d.]+(?:e-?\d+)?", re.MULTILINE)
-
-    time_data = np.zeros([len(string_data), 6])
-    for i, ss in enumerate(string_data):
+    time_data = np.zeros([len(step_strings), 6])
+    mlmg_data = np.zeros([len(step_strings), 6])
+    for i, ss in enumerate(step_strings):
         numbers = regex_real.findall(ss)
         time_data[i, :] = np.array(numbers)
+    for i, ss in enumerate(mlmg_strings):
+        numbers = regex_real.findall(ss)
+        mlmg_data[i, :] = np.array(numbers)
 
     print("...done!")
-    return specs, time_data
+    return specs, time_data, mlmg_data
