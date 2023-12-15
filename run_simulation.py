@@ -17,7 +17,7 @@ from params import Params
 
 comm = mpi.COMM_WORLD
 
-simulation = picmi.Simulation(verbose=3)
+simulation = picmi.Simulation(verbose=0)
 
 #######################################################################
 # Begin physical parameters                                           #
@@ -28,12 +28,10 @@ params.Lr = 0.01  # has to be smaller than the coil radius
 params.Lz = 0.10
 
 # spatial resolution in number of cells
-# params.Nr = 160
-# params.Nz = 1600
-params.Nr = 256
-params.Nz = 2048
-# params.Nr = 16
-# params.Nz = 32
+# params.Nr = 256
+# params.Nz = 2048
+params.Nr = 16
+params.Nz = 32
 
 # mirror ratio
 # R and Bmax determine the coil radius
@@ -100,8 +98,8 @@ class MagneticMirror2D(object):
         params.diag_steps = int(params.total_steps / 100)
 
         # for debug use
-        params.total_steps = 5000
-        params.diag_steps = int(params.total_steps / 100)
+        params.total_steps = 10
+        params.diag_steps = 2
 
         # calculate the flux from the thermal plasma reservoir
         params.flux_e = (
@@ -138,7 +136,7 @@ class MagneticMirror2D(object):
         simulation.time_step_size = params.dt
         simulation.max_steps = params.total_steps
         # simulation.load_balance_intervals = params.total_steps // 100
-        # simulation.load_balance_intervals = 20
+        # simulation.load_balance_intervals = 5
 
         #######################################################################
         # Field solver and external field                                     #
@@ -149,7 +147,7 @@ class MagneticMirror2D(object):
             method="Multigrid",
             required_precision=1e-6,
             # higher the number, more verbose it is (default 2)
-            warpx_self_fields_verbosity=1,
+            warpx_self_fields_verbosity=0,
         )
         simulation.solver = self.solver
 
@@ -242,8 +240,10 @@ class MagneticMirror2D(object):
             grid=self.grid,
             period=params.diag_steps,
             data_list=["phi", "rho_electrons", "rho_ions", "part_per_cell"],
-            warpx_dump_rz_modes=1,
+            warpx_dump_rz_modes=True,
             write_dir=diags_dirname,
+            warpx_format="openpmd",
+            warpx_openpmd_backend="h5",
         )
         self.particle_diag = picmi.ParticleDiagnostic(
             name="diag",
@@ -251,8 +251,9 @@ class MagneticMirror2D(object):
             species=[self.ions, self.electrons],
             data_list=["momentum", "weighting"],
             write_dir=diags_dirname,
+            warpx_format="openpmd",
+            warpx_openpmd_backend="h5",
         )
-
         callbacks.installafterinit(self._create_diags_dir)
         simulation.add_diagnostic(self.field_diag)
         simulation.add_diagnostic(self.particle_diag)

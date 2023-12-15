@@ -36,7 +36,7 @@ TODO:
 2. [x] ion temperature 1ev
 3. [x] make electron larmor radius 1/50 of the system radius (and make sure ion is small as well)
 
-### diags20201212
+### diags202312120934
 INFO:
 1. dimensions to 160x1600
 2. set $dt = 0.1 / \omega_c$
@@ -49,3 +49,10 @@ INFO:
 TODO:
 1. set the time step larger
 2. make the simulation longer
+
+### diags202312132227
+INFO:
+1. dimensions to 256x2048
+2. set warpx_max_grid_size_x=64, warpx_max_grid_size_x=256, warpx_blocking_factor_x=32, and warpx_blocking_factor_x=128
+3. set $dt = 0.5 / \omega_c$
+4. has electric field
