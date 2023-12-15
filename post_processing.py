@@ -1,10 +1,12 @@
-from typing import Literal
 import h5py
+import sys
 import os
 import re
+import glob
 import numpy as np
 import scipy as sp
 import matplotlib.pyplot as plt
+from typing import Literal
 from params import Params
 from magnetic_field import CoilBField
 from matplotlib.animation import FuncAnimation
@@ -14,6 +16,23 @@ plt.rcParams["figure.facecolor"] = "white"
 plt.rcParams["axes.facecolor"] = "white"
 plt.rcParams["font.size"] = "16"
 
+Species = Literal["electrons", "ions"]
+FieldKey = Literal[
+    "n_electrons",
+    "n_ions",
+    "rho_electrons",
+    "rho_ions",
+    "mz_electrons",
+    "mz_ions",
+    "mr_electrons",
+    "mr_ions",
+    "phi",
+    "normed_phi",
+    "part_per_cell",
+]
+Direction = Literal["r", "z"]
+PlotType = Literal["slice", "line"]
+
 
 class Analysis:
     def __init__(self, dirname: str) -> None:
@@ -21,7 +40,8 @@ class Analysis:
         self.params = Params()
         self.params.load(f"{dirname}/params.json")
         self.files = os.listdir(f"{self.dirname}/diag")
-        self.files.remove("paraview.pmd")
+        if "paraview.pmd" in self.files:
+            self.files.remove("paraview.pmd")
         self.files.sort(key=lambda name: int(name[8:-3]))
         self.steps = np.sort([0] + [int(file[8:-3]) for file in self.files])
         self.time = self.steps * self.params.dt
@@ -31,89 +51,70 @@ class Analysis:
         self.z = np.linspace(-self.params.Lz / 2, self.params.Lz / 2, self.params.Nz)
         self.Z, self.R = np.meshgrid(self.z, self.r)
 
-        # field data
-        self.field_data = {}
-        # specs (number of cores, etcs)
-        self.specs = {}
-        # wall time per step
-        self.time_per_step = None
+    # TODO: too slow, improve this
+    def extract_momentum(
+        self, f: h5py.File, species: Species, frame: int, direction: Literal["r", "z"]
+    ):
+        """Get momentum of species at certain frame"""
+        x = np.array(f[f"data/{self.steps[frame]}/particles/{species}/position/x"])
+        y = np.array(f[f"data/{self.steps[frame]}/particles/{species}/position/y"])
+        z = np.array(f[f"data/{self.steps[frame]}/particles/{species}/position/z"])
+        r = np.sqrt(x**2 + y**2)
+        mx = np.array(f[f"data/{self.steps[frame]}/particles/{species}/momentum/x"])
+        my = np.array(f[f"data/{self.steps[frame]}/particles/{species}/momentum/y"])
+        mz = np.array(f[f"data/{self.steps[frame]}/particles/{species}/momentum/z"])
+        mr = np.sqrt(mx**2 + my**2)
+        w = np.array(f[f"data/{self.steps[frame]}/particles/{species}/weighting"])
 
-        # read data files
-        self.extract_field_data()
-        self.extract_particle_data()
-        self.extract_time_data()
+        # logical coordinate
+        i = (r / self.params.dr).astype(int)
+        # need to shift z to positive other k is negative
+        k = ((z + self.params.Lz / 2) / self.params.dz).astype(int)
 
-    def extract_field_data(self):
-        """
-        Return time series data
+        data = np.zeros((self.params.Nr, self.params.Nz))
+        for n in range(mr.size):
+            if direction == "r":
+                data[i[n], k[n]] += w[n] * mr[n] / mr.size
+            else:
+                data[i[n], k[n]] += w[n] * mz[n] / mz.size
+        return data
 
-        field_data[field_name].shape = (Nr,Nz,total_steps)
-        """
-        for key in ["rho_electrons", "rho_ions", "phi", "part_per_cell"]:
-            if key not in self.field_data:
-                self.field_data[key] = np.zeros(
-                    (self.params.Nr, self.params.Nz, len(self.steps))
-                )
-            for frame, file in enumerate(self.files, start=1):
-                f = h5py.File(f"{self.dirname}/diag/{file}", "r")
-                field_array = np.array(f[f"data/{self.steps[frame]}/fields/{key}"]).T
-                if len(field_array.shape) == 3:
-                    self.field_data[key][:, :, frame] = field_array[:, :, 0]
-                elif len(field_array.shape) == 2:
-                    self.field_data[key][:, :, frame] = field_array[:, :]
-
-        self.field_data["n_electrons"] = (
-            self.field_data["rho_electrons"] / -sp.constants.e
-        )
-        self.field_data["n_ions"] = self.field_data["rho_ions"] / sp.constants.e
-        self.field_data["normed_phi"] = self.field_data["phi"] / self.params.T_e
-
-    def extract_particle_data(self):
-        for species in ["electrons", "ions"]:
-            if species not in self.field_data:
-                self.field_data[f"mr_{species}"] = np.zeros(
-                    (self.params.Nr, self.params.Nz, len(self.steps))
-                )
-                self.field_data[f"mz_{species}"] = np.zeros(
-                    (self.params.Nr, self.params.Nz, len(self.steps))
-                )
-
-            for frame, file in enumerate(self.files, start=1):
-                f = h5py.File(f"{self.dirname}/diag/{file}", "r")
-                x = np.array(
-                    f[f"data/{self.steps[frame]}/particles/{species}/position/x"]
-                )
-                y = np.array(
-                    f[f"data/{self.steps[frame]}/particles/{species}/position/y"]
-                )
-                z = np.array(
-                    f[f"data/{self.steps[frame]}/particles/{species}/position/z"]
-                )
-                r = np.sqrt(x**2 + y**2)
-                mx = np.array(
-                    f[f"data/{self.steps[frame]}/particles/{species}/momentum/x"]
-                )
-                my = np.array(
-                    f[f"data/{self.steps[frame]}/particles/{species}/momentum/y"]
-                )
-                mz = np.array(
-                    f[f"data/{self.steps[frame]}/particles/{species}/momentum/z"]
-                )
-                mr = np.sqrt(mx**2 + my**2)
-
-                # logical coordinate
-                i = (np.sqrt(x**2 + y**2) / self.params.dr).astype(int)
-                k = ((z + self.params.Lz / 2) / self.params.dz).astype(
-                    int
-                )  # need to shift z to positive other k is negative
-
-                for n in range(mr.size):
-                    self.field_data[f"mr_{species}"][i[n], k[n], frame] += (
-                        mr[n] / mr.size
-                    )
-                    self.field_data[f"mz_{species}"][i[n], k[n], frame] += (
-                        mz[n] / mz.size
-                    )
+    def get_data(self, key: FieldKey, frame: int):
+        """Get data with field key at certain frame"""
+        if frame == 0:
+            return np.zeros((self.params.Nr, self.params.Nz))
+        elif frame > 0:  # frame - 1 becase diagnostics didn't output the initial field
+            file = h5py.File(f"{self.dirname}/diag/{self.files[frame-1]}", "r")
+        else:  # nagative index
+            file = h5py.File(f"{self.dirname}/diag/{self.files[frame]}", "r")
+        match key:
+            case "rho_electrons":
+                data = np.array(file[f"data/{self.steps[frame]}/fields/{key}"])
+                return data.T[:, :, 0]
+            case "rho_ions":
+                data = np.array(file[f"data/{self.steps[frame]}/fields/{key}"])
+                return data.T[:, :, 0]
+            case "n_electrons":
+                data = np.array(file[f"data/{self.steps[frame]}/fields/rho_electrons"])
+                return data.T[:, :, 0] / -sp.constants.e
+            case "n_ions":
+                data = np.array(file[f"data/{self.steps[frame]}/fields/rho_ions"])
+                return data.T[:, :, 0] / sp.constants.e
+            case "phi":
+                data = np.array(file[f"data/{self.steps[frame]}/fields/phi"])
+                return data.T[:, :, 0]
+            case "normed_phi":
+                data = np.array(file[f"data/{self.steps[frame]}/fields/phi"])
+                return data.T[:, :, 0] / self.params.T_e
+            case "part_per_cell":
+                # this field has exactly 2 dimensions
+                return np.array(file[f"data/{self.steps[frame]}/fields/{key}"]).T
+            case _:
+                if not key.startswith("m"):
+                    raise KeyError()
+                direction = key[1]
+                species = key.split("_")[1]
+                return self.extract_momentum(file, species, frame, direction)
 
     def extract_time_data(self):
         """
@@ -127,7 +128,7 @@ class Analysis:
         time_date[:,4]: This step
         time_date[:,5]: Avg. per step
         """
-        output_file = f"{self.dirname}/output.log"
+
         regex_core = re.compile(r"MPI initialized with ([0-9]*) MPI processes")
         regex_omp = re.compile(r"OMP initialized with ([0-9]*) OMP threads")
         regex_step = re.compile(
@@ -139,10 +140,21 @@ class Analysis:
         )
         regex_real = re.compile(r" -?[\d.]+(?:e-?\d+)?", re.MULTILINE)
 
+        specs = {}
+        file_list = glob.glob(f"{self.dirname}/*.log")
+        if len(file_list) == 0:
+            raise FileNotFoundError(
+                "The standard output from WarpX must be placed in diags folder and have extension .log"
+            )
+        elif len(file_list) > 1:
+            raise RuntimeError("Too many output logs.")
+        else:
+            output_file = file_list[0]
+
         with open(output_file) as f:
             text = f.read()
-            self.specs["cores"] = int(regex_core.search(text).group(1))
-            self.specs["omp_threads"] = int(regex_omp.search(text).group(1))
+            specs["cores"] = int(regex_core.search(text).group(1))
+            specs["omp_threads"] = int(regex_omp.search(text).group(1))
             step_strings = [s.group(0) for s in regex_step.finditer(text)]
             mlmg_strings = [s.group(0) for s in regex_mlmg.finditer(text)]
 
@@ -155,7 +167,7 @@ class Analysis:
             numbers = regex_real.findall(ss)
             mlmg_data[i, :] = np.array(numbers)
 
-        self.time_per_step = time_data[:, 4]
+        return specs, time_data
 
     def plot_time(self, estimate_steps: int = 0, fitting_start: int = 0):
         """
@@ -163,9 +175,11 @@ class Analysis:
         If estimate_steps is given, estimate the time.
         If fitting_start is given, fitting fits graph after fitting_start
         """
+        specs, time_data = self.extract_time_data()
+        steps = time_data[:, 0]
+        total_times = time_data[:, 3]
+        time_per_step = time_data[:, 4]
         plt.figure()
-        steps = np.arange(1, self.time_per_step.size + 1)
-        total_times = self.time_per_step.cumsum()
         plt.plot(
             steps,
             total_times,
@@ -174,7 +188,7 @@ class Analysis:
         )
         plt.xlabel("Step")
         plt.ylabel("Total time (s)")
-        plt.title(f"{self.specs['cores']} Cores")
+        plt.title(f"{specs['cores']} Cores")
 
         if estimate_steps > 0:
             p = np.polyfit(
@@ -193,16 +207,24 @@ class Analysis:
         plt.show()
 
         plt.figure()
-        plt.semilogy(steps, self.time_per_step)
+        plt.semilogy(steps, time_per_step)
         plt.xlabel("Step")
         plt.ylabel("Time per step (s)")
-        plt.title(f"{self.specs['cores']} Cores")
+        plt.title(f"{specs['cores']} Cores")
         plt.show()
 
-    def plot_density(self, frame: int, plot_type: Literal["slice", "line"] = "slice"):
+    def average_along_central_axis(self, data: np.array):
+        dr = self.params.dr
+        Nz = self.params.Nz
+        R = 5 * dr
+        r_along_z = np.repeat(np.arange(dr / 2, R, dr), Nz).reshape(5, -1)
+        # \int_0^R 2\pi rdr f(r) / \pi R^2
+        return np.sum(2 * r_along_z * dr * data[:5, :] / R**2, axis=0)
+
+    def plot_density(self, frame: int, plot_type: PlotType = "slice"):
         time = self.time[frame]
-        n_e = self.field_data["n_electrons"][:, :, frame]
-        n_i = self.field_data["n_ions"][:, :, frame]
+        n_e = self.get_data("n_electrons", frame)
+        n_i = self.get_data("n_ions", frame)
         if plot_type == "slice":
             fig, ax = plt.subplots(1, 2, sharey=True)
             pm = ax[0].pcolormesh(self.R, self.Z, n_e, cmap="Blues")
@@ -217,17 +239,19 @@ class Analysis:
             fig.tight_layout()
         else:
             fig = plt.figure()
-            plt.plot(self.z, n_e[0, :], color="blue", label="$n_e$")
-            plt.plot(self.z, n_i[0, :], color="red", label="$n_i$")
+            mean_n_e = self.average_along_central_axis(n_e)
+            mean_n_i = self.average_along_central_axis(n_i)
+            plt.semilogy(self.z, mean_n_e, color="blue", label="$n_e$")
+            plt.semilogy(self.z, mean_n_i, color="red", label="$n_i$")
             plt.xlabel("$z$ (m)")
-            plt.ylabel("$\\rho$ (m$^{-3}$)")
+            plt.ylabel("$n$ (m$^{-3}$)")
             plt.title(f"$t$={time:.2e}s")
             plt.legend()
             fig.show()
 
-    def plot_potential(self, frame: int, plot_type: Literal["slice", "line"] = "slice"):
+    def plot_potential(self, frame: int, plot_type: PlotType = "slice"):
         time = self.time[frame]
-        normed_phi = self.field_data["normed_phi"][:, :, frame]
+        normed_phi = self.get_data("normed_phi", frame)
         if plot_type == "slice":
             fig = plt.figure()
             plt.pcolormesh(self.R, self.Z, normed_phi, cmap="coolwarm")
@@ -243,17 +267,22 @@ class Analysis:
             plt.ylabel("$\\phi/T_e$ ")
             fig.show()
 
-    def plot_momentum(self, frame: int, plot_type: Literal["slice", "line"] = "slice"):
+    def plot_momentum(
+        self,
+        frame: int,
+        direction: Direction = "z",
+        plot_type: PlotType = "slice",
+    ):
         time = self.time[frame]
-        mz_e = self.field_data["mz_electrons"][:, :, frame]
-        mz_i = self.field_data["mz_ions"][:, :, frame]
+        m_e = self.get_data(f"m{direction}_electrons", frame)
+        m_i = self.get_data(f"m{direction}_ions", frame)
         if plot_type == "slice":
             fig, ax = plt.subplots(1, 2, sharey=True)
-            pm = ax[0].pcolormesh(self.R, self.Z, mz_e, cmap="Reds")
+            pm = ax[0].pcolormesh(self.R, self.Z, m_e, cmap="Reds")
             fig.colorbar(pm, label="$m_{ze}$")
             ax[0].set_xlabel("$r$ (m)")
             ax[0].set_ylabel("$z$ (m)")
-            pm = ax[1].pcolormesh(self.R, self.Z, mz_i, cmap="Reds")
+            pm = ax[1].pcolormesh(self.R, self.Z, m_i, cmap="Reds")
             fig.colorbar(pm, label="$m_{zi}$")
             ax[1].set_xlabel("$r$ (m)")
             ax[1].set_ylabel("$z$ (m)")
@@ -262,9 +291,10 @@ class Analysis:
             fig.show()
         else:
             fig = plt.figure()
-            plt.plot(self.z, mz_e[0, :], label="$m_{ze}$")
-            plt.plot(self.z, mz_i[0, :], label="$m_{zi}$")
+            plt.plot(self.z, m_e[0, :], label="$m_{ze}$")
+            plt.plot(self.z, m_i[0, :], label="$m_{zi}$")
             plt.xlabel("$z$ (m)")
+            plt.ylabel("$m$ (kg$\cdot$m/s)")
             plt.title(f"$t$={time:.2e}s")
             plt.legend()
             fig.show()
@@ -287,92 +317,100 @@ class Analysis:
         plt.tight_layout()
         fig.show()
 
-    def animate_slice(self, field_name: Literal["density", "momentum", "potential"]):
-        fig, ax = plt.subplots(1, 1 if field_name == "potential" else 2)
-        if field_name == "density":
-            n_e = self.field_data["n_electrons"][:, :, 0]
-            n_i = self.field_data["n_ions"][:, :, 0]
+    def animate_slice(self, field_type: Literal["density", "momentum", "potential"]):
+        fig, ax = plt.subplots(1, 1 if field_type == "potential" else 2)
+        frame = 0
+        if field_type == "density":
+            n_e = self.get_data("n_electrons", frame)
+            n_i = self.get_data("n_ions", frame)
             pm_e = ax[0].pcolormesh(self.R, self.Z, n_e, cmap="Blues")
             pm_i = ax[1].pcolormesh(self.R, self.Z, n_i, cmap="Reds")
             fig.colorbar(pm_e, label="$n_e$")
             fig.colorbar(pm_i, label="$n_i$")
-        elif field_name == "momentum":
-            mz_e = self.field_data["mz_electrons"][:, :, 0]
-            mz_i = self.field_data["mz_ions"][:, :, 0]
+        elif field_type == "momentum":
+            mz_e = self.get_data("mz_electrons", frame)
+            mz_i = self.get_data("mz_ions", frame)
             pm_e = ax[0].pcolormesh(self.R, self.Z, mz_e, cmap="Reds")
             pm_i = ax[1].pcolormesh(self.R, self.Z, mz_i, cmap="Reds")
             fig.colorbar(pm_e, label="$m_{ze}$")
             fig.colorbar(pm_i, label="$m_{zi}$")
         else:
-            phi = self.field_data["phi"][:, :, 0]
+            phi = self.get_data("phi", frame)
             pm = ax.pcolormesh(self.R, self.Z, phi)
             fig.colorbar(pm, label="$phi_e$")
-        time = self.time[0]
+        time = self.time[frame]
         fig.suptitle(f"$t$={time:.2e}s")
         fig.tight_layout()
 
         def animate(frame: int):
-            if field_name == "density":
-                n_e = self.field_data["n_electrons"][:, :, frame]
-                n_i = self.field_data["n_ions"][:, :, frame]
+            if field_type == "density":
+                n_e = self.get_data("n_electrons", frame)
+                n_i = self.get_data("n_ions", frame)
                 pm_e.set_array(n_e)
                 pm_i.set_array(n_i)
-            elif field_name == "momentum":
-                mz_e = self.field_data["mz_electrons"][:, :, frame]
-                mz_i = self.field_data["mz_ions"][:, :, frame]
+            elif field_type == "momentum":
+                mz_e = self.get_data("mz_electrons", frame)
+                mz_i = self.get_data("mz_ions", frame)
                 pm_e.set_array(mz_e)
                 pm_i.set_array(mz_i)
             else:
-                phi = self.field_data["phi"][:, :, frame]
+                phi = self.get_data("phi", frame)
                 pm.set_array(phi)
             time = self.time[frame]
             fig.suptitle(f"$t$={time:.2e}s")
 
         anime = FuncAnimation(fig, animate, frames=tqdm(range(len(self.steps))))
-        anime.save(f"{self.dirname}/slice_plot_{field_name}.mp4")
+        anime.save(f"{self.dirname}/slice_plot_{field_type}.mp4")
 
-    def animate_line(self, field_name: Literal["density", "momentum", "potential"]):
+    def animate_line(self, field_type: Literal["density", "momentum", "potential"]):
         fig, ax = plt.subplots(1, 1)
-        if field_name == "density":
-            n_e = self.field_data["n_electrons"][0, :, 0]
-            n_i = self.field_data["n_ions"][0, :, 0]
+        frame = 0
+        if field_type == "density":
+            n_e = self.get_data("n_electrons", frame)[0, :]
+            n_i = self.get_data("n_ions", frame)[0, :]
             (ln1,) = ax.plot(self.z, n_e, color="blue", label="$n_e$")
             (ln2,) = ax.plot(self.z, n_i, color="red", label="$n_i$")
-        elif field_name == "momentum":
-            mz_e = self.field_data["mz_electrons"][0, :, 0]
-            mz_i = self.field_data["mz_ions"][0, :, 0]
+        elif field_type == "momentum":
+            mz_e = self.get_data("mz_electrons", frame)[0, :]
+            mz_i = self.get_data("mz_ions", frame)[0, :]
             (ln1,) = ax.plot(self.z, mz_e, label="$m_{ze}$")
             (ln2,) = ax.plot(self.z, mz_i, label="$m_{zi}$")
         else:
-            phi = self.field_data["phi"][0, :, 0]
+            phi = self.get_data("phi", frame)[0, :]
             (ln,) = ax.plot(self.z, phi, label="$\\phi$")
-        time = self.time[0]
+        time = self.time[frame]
         fig.suptitle(f"$t$={time:.2e}s")
         ax.legend()
 
         def animate(frame: int):
-            if field_name == "density":
-                n_e = self.field_data["n_electrons"][0, :, frame]
-                n_i = self.field_data["n_ions"][0, :, frame]
+            if field_type == "density":
+                n_e = self.get_data("n_electrons", frame)[0, :]
+                n_i = self.get_data("n_ions", frame)[0, :]
                 ln1.set_data(self.z, n_e)
                 ln2.set_data(self.z, n_i)
-            elif field_name == "momentum":
-                mz_e = self.field_data["mz_electrons"][0, :, frame]
-                mz_i = self.field_data["mz_ions"][0, :, frame]
+            elif field_type == "momentum":
+                mz_e = self.get_data("mz_electrons", frame)[0, :]
+                mz_i = self.get_data("mz_ions", frame)[0, :]
                 ln1.set_data(self.z, mz_e)
                 ln2.set_data(self.z, mz_i)
             else:
-                phi = self.field_data["phi"][0, :, frame]
+                phi = self.get_data("phi", frame)[0, :]
                 ln.set_data(self.z, phi)
             time = self.time[frame]
             fig.suptitle(f"$t$={time:.2e}s")
 
         anime = FuncAnimation(fig, animate, frames=tqdm(range(len(self.steps))))
-        anime.save(f"{self.dirname}/line_plot_{field_name}.mp4")
+        anime.save(f"{self.dirname}/line_plot_{field_type}.mp4")
 
 
 if __name__ == "__main__":
-    analysis = Analysis("diags202312141955")
-    for field in ["density", "momentum", "potential"]:
-        analysis.animate_slice(field)
-        analysis.animate_line(field)
+    if len(sys.argv) != 2:
+        print("Need 1 argument: the name of the diagnostics folder")
+    else:
+        dirname = sys.argv[1]
+        analysis = Analysis(dirname)
+        print("Making animes")
+        for field in ["density", "potential"]:
+            analysis.animate_slice(field)
+            analysis.animate_line(field)
+        print(f"Check animes in {dirname}")

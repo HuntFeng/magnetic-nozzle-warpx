@@ -1,1 +1,0 @@
-- [ ] plot graphs with ghost cells and see if phi satisfies the bc

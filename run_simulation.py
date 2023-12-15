@@ -1,13 +1,13 @@
 """2D, fully kinetic simulation of a magnetic mirror. This input is modelled
 after the work of Wetherton et al. 2021.
 Written in Oct 2022 by Roelof Groenewald.
-Edited in Sep 2023 by Hunt Feng, using warpx 23.11 and its pywarpx wheel. 
+Edited in Sep 2023 by Hunt Feng, using WarpX 23.11. 
 """
 import os
 import shutil
 import numpy as np
 from mpi4py import MPI as mpi
-from pywarpx import callbacks, fields, particle_containers, picmi, libwarpx
+from pywarpx import callbacks, picmi, libwarpx
 from datetime import datetime
 
 import util
@@ -17,7 +17,7 @@ from params import Params
 
 comm = mpi.COMM_WORLD
 
-simulation = picmi.Simulation(verbose=0)
+simulation = picmi.Simulation(verbose=1)
 
 #######################################################################
 # Begin physical parameters                                           #
@@ -28,10 +28,10 @@ params.Lr = 0.01  # has to be smaller than the coil radius
 params.Lz = 0.10
 
 # spatial resolution in number of cells
-# params.Nr = 256
-# params.Nz = 2048
-params.Nr = 16
-params.Nz = 32
+params.Nr = 256
+params.Nz = 2048
+# params.Nr = 16
+# params.Nz = 32
 
 # mirror ratio
 # R and Bmax determine the coil radius
@@ -98,8 +98,8 @@ class MagneticMirror2D(object):
         params.diag_steps = int(params.total_steps / 100)
 
         # for debug use
-        params.total_steps = 10
-        params.diag_steps = 2
+        params.total_steps = 5000
+        params.diag_steps = 50
 
         # calculate the flux from the thermal plasma reservoir
         params.flux_e = (
@@ -135,6 +135,7 @@ class MagneticMirror2D(object):
         )
         simulation.time_step_size = params.dt
         simulation.max_steps = params.total_steps
+        # FIXME: this crashes the simulation if more than 1 core is used
         # simulation.load_balance_intervals = params.total_steps // 100
         # simulation.load_balance_intervals = 5
 

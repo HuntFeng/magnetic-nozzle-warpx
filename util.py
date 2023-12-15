@@ -1,8 +1,5 @@
 import numpy as np
-import scipy as sp
-
-# constants
-constants = sp.constants
+import scipy.constants as constants
 
 
 def inertial_length(n: float):

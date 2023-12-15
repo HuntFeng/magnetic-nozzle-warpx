@@ -6,75 +6,62 @@ We are going to use virtualenv to install all things
 ### Load Niagara modules
 ```
 module purge
-module load NiaEnv/2019b gcc/8.3.0 intelmpi/2019u5 python/3.9.8
+module load NiaEnv/2019b intel/2020u4 intelmpi/2020u4 python/3.11.5 ffmpeg/3.4.2 hdf5/1.10.7
 ```
+- hdf5 is to enable WarpX hdf5 output.
+- ffmpeg is for making animes. If not planning to make animes, this is optional.
+- `match...case...` syntax is used in `post_processing.py`, python version must be `>3.10`.
 
 ### Create virtualenv
 ```
 virtualenv --system-site-packages $HOME/.venvs/warpx
 source $HOME/.venvs/warpx/bin/activate
-pip install cmake mpi4py numpy scipy tqdm matplotlib jupyter yt
+pip install cmake tqdm matplotlib jupyter
 ```
-- if `mpi4py` installation is not okay, remove the pip cache and reinstall it.
-```
-pip unstall mpi4py
-pip cache remove mpi4py
-pip install mpi4py
-```
+- cmake is required in the virtualenv since warpx will be compiled and build using cmake.
 
-### Compile warpx
-Clone the repo first, we are using version 23.11
-```
-https://github.com/ECP-WarpX/WarpX
-```
-Put this into a bash script and run it,
-```
-# compile warpx
-# the -S and -B flag must in same line
-# one option should also in the same line as cmake, otherwise the command fails sometime
-echo "compile warpx"
-cmake -S $HOME/warpx -B $HOME/warpx/build -DWarpX_DIMS=RZ \
-  -DWarpX_COMPUTE=OMP \
-  -DWARX_MPI=ON \
-  -DWarpX_LIB=ON \
-  -DWarpX_QED=OFF \
-  -DWarpX_OPENPMD=OFF \
-  -DWarpX_PYTHON=ON
-
-echo "build warpx and do pip install"
-# these env vars are for pywarpx building
-export PYWARPX_LIB_DIR=$HOME/warpx/build/lib
-export WARPX_DIMS=RZ
-export WARPX_COMPUTE=OMP
-export WARPX_MPI=ON
-export WARPX_OPENPMD=OFF
-export WARPX_QED=OFF
-cmake --build $HOME/warpx/build --target pip_install -j 4
-```
+### Compile WarpX
+Download (WarpX-23.11)[https://github.com/ECP-WarpX/WarpX] to Home directory and rename it to `WarpX-23.11`, then use the `build-warpx.sh` to build WarpX. It is configured to enable RZ coordinate, OMP, python binding (pywarpx), and openpmd (hdf5) output format.
 
 ## Running
 
 ### Testing and debugging
+To run the simulation, simply do
 ```
-mpirun -np <tasks> python picmi-input.py
+mpirun -np <tasks> python run_simulation.py
+```
+- The script will create a folder with format `diagsyyyymmddHHMMSS`. The diagnostics are in this folder.
+- If want to diagnose the wall time per step using the `post_processing.py`, set the warpx verbosity to 1 
+```
+picmi.Simulation(verbose=1)
+```
+the output the warpx standard output a `.log` file and place into the diagnostics folder.
+```
+mpirun -np <tasks> python run_simulation.py > output.log
+# when simulation is done
+mv output.log <diags_folder>
 ```
 
 ### Use Slurm
-Put this into a slurm script
+To submit a job to Slurm. simply use the slurm script `nozzle`,
 ```
-#!/bin/bash
-## Ask for 2 nodes on the cluster
-#SBATCH --nodes=2
-## Ask for a total of 32 MPI tasks
-#SBATCH --ntasks=32
-## Ste a run time limit
-#SBATCH --time=0:30:00
-# sends mail when process begins, and when it ends. Make sure you define your email 
-#SBATCH --mail-type=end 
-#SBATCH --mail-user=hunt.feng@usask.ca 
+sbatch nozzle
+```
+- Change the system variables as you wish, since every HPC has different directory stuctures.
+- Again, if want to diagnose the wall time per step, remember to move the output log to the diags folder
+```
+mv output*.log <diags_folder>
+```
 
-source $HOME/warpx.profile 
-source $HOME/.venvs/warpx/bin/activate
-cd $SCRATCH/magnetic-nozzle-warpx
-mpirun -np <tasks> python <picmi-input>.py >& output.log
+## Post-Processing
+The `post_processing.py` script has everything ready for you.
+- To make animes, simply do
 ```
+python post_processing.py <diags_folder>
+```
+- To draw graphs of certain fields at certain step, check the usage in `analysis.ipynb`.
+
+## Files
+- `params.py`: Record the parameters used in simulation. 
+- `util.py`: Usefule physics formulas are in here.
+- `solver.py`: Custom Poisson solvers.
