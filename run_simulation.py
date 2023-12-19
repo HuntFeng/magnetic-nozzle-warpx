@@ -7,7 +7,7 @@ import os
 import shutil
 import numpy as np
 from mpi4py import MPI as mpi
-from pywarpx import callbacks, picmi, libwarpx
+from pywarpx import callbacks, picmi
 from datetime import datetime
 
 import util
@@ -52,11 +52,7 @@ params.nppc_seed = 5  # 800
 # total simulation time in ion thermal crossing times
 params.crossing_times = 0.5
 
-# diagnostics dir (set name in rank 0 then broadcast it to ensure the name is the same in everyrank)
-diags_dirname = (
-    f"diags{datetime.now().strftime('%Y%m%d%H%M')}" if comm.Get_rank() == 0 else ""
-)
-diags_dirname = comm.bcast(diags_dirname, root=0)
+
 #######################################################################
 # End global user parameters and user input                           #
 #######################################################################
@@ -98,8 +94,8 @@ class MagneticMirror2D(object):
         params.diag_steps = int(params.total_steps / 100)
 
         # for debug use
-        params.total_steps = 5000
-        params.diag_steps = 50
+        params.total_steps = 2000
+        params.diag_steps = 100
 
         # calculate the flux from the thermal plasma reservoir
         params.flux_e = (
@@ -122,10 +118,10 @@ class MagneticMirror2D(object):
 
         self.grid = picmi.CylindricalGrid(
             number_of_cells=[params.Nr, params.Nz],
-            warpx_max_grid_size_x=64,  # max num_cells in a grid in r direction
-            warpx_max_grid_size_y=256,  # max num_cells in a grid in z direction
-            warpx_blocking_factor_x=32,  # min num_cells in a grid in r direction
-            warpx_blocking_factor_y=128,  # min num_cells in a grid in z direction
+            warpx_max_grid_size_x=8,  # max num_cells in a grid in r direction
+            warpx_max_grid_size_y=32,  # max num_cells in a grid in z direction
+            warpx_blocking_factor_x=4,  # min num_cells in a grid in r direction
+            warpx_blocking_factor_y=16,  # min num_cells in a grid in z direction
             lower_bound=[0, -params.Lz / 2.0],
             upper_bound=[params.Lr, params.Lz / 2.0],
             lower_boundary_conditions=["none", "dirichlet"],
@@ -135,9 +131,7 @@ class MagneticMirror2D(object):
         )
         simulation.time_step_size = params.dt
         simulation.max_steps = params.total_steps
-        # FIXME: this crashes the simulation if more than 1 core is used
-        # simulation.load_balance_intervals = params.total_steps // 100
-        # simulation.load_balance_intervals = 5
+        simulation.load_balance_intervals = 50
 
         #######################################################################
         # Field solver and external field                                     #
@@ -255,28 +249,35 @@ class MagneticMirror2D(object):
             warpx_format="openpmd",
             warpx_openpmd_backend="h5",
         )
-        callbacks.installafterinit(self._create_diags_dir)
         simulation.add_diagnostic(self.field_diag)
         simulation.add_diagnostic(self.particle_diag)
 
         #######################################################################
         # Initialize run and print diagnostic info                            #
         #######################################################################
-
         simulation.initialize_inputs()
         simulation.initialize_warpx()
 
-    def _create_diags_dir(self):
-        if libwarpx.amr.ParallelDescriptor.MyProc() == 0:  # ^23.10
-            if os.path.exists(diags_dirname):
-                shutil.rmtree(diags_dirname)
-            os.mkdir(diags_dirname)
-            params.save(f"{diags_dirname}/params.json")
-
     def run_sim(self):
+        if comm.Get_rank() == 0:
+            params.save(f"{diags_dirname}/params.json")
         simulation.write_input_file(file_name=f"{diags_dirname}/wrapx_used_inputs")
         simulation.step(params.total_steps)
 
 
-my_2d_mirror = MagneticMirror2D()
-my_2d_mirror.run_sim()
+def create_diags_dir():
+    if comm.Get_rank() == 0:
+        if os.path.exists(diags_dirname):
+            shutil.rmtree(diags_dirname)
+        os.mkdir(diags_dirname)
+
+
+if __name__ == "__main__":
+    # diagnostics dir (set name in rank 0 then broadcast it to ensure the name is the same in everyrank)
+    diags_dirname = (
+        f"diags{datetime.now().strftime('%Y%m%d%H%M')}" if comm.Get_rank() == 0 else ""
+    )
+    diags_dirname = comm.bcast(diags_dirname, root=0)
+    create_diags_dir()
+    my_2d_mirror = MagneticMirror2D()
+    my_2d_mirror.run_sim()

@@ -81,12 +81,7 @@ class Analysis:
 
     def get_data(self, key: FieldKey, frame: int):
         """Get data with field key at certain frame"""
-        if frame == 0:
-            return np.zeros((self.params.Nr, self.params.Nz))
-        elif frame > 0:  # frame - 1 becase diagnostics didn't output the initial field
-            file = h5py.File(f"{self.dirname}/diag/{self.files[frame-1]}", "r")
-        else:  # nagative index
-            file = h5py.File(f"{self.dirname}/diag/{self.files[frame]}", "r")
+        file = h5py.File(f"{self.dirname}/diag/{self.files[frame]}", "r")
         match key:
             case "rho_electrons":
                 data = np.array(file[f"data/{self.steps[frame]}/fields/{key}"])
@@ -169,49 +164,70 @@ class Analysis:
 
         return specs, time_data
 
-    def plot_time(self, estimate_steps: int = 0, fitting_start: int = 0):
+    def plot_time(self, total_step: int = 0, fitting_range: range = [500, 1500]):
         """
         Plot time vs step graph.
-        If estimate_steps is given, estimate the time.
-        If fitting_start is given, fitting fits graph after fitting_start
+        If total_step is given, estimate the time.
+        If fitting_range is given, fit the graphs within the range
         """
         specs, time_data = self.extract_time_data()
         steps = time_data[:, 0]
         total_times = time_data[:, 3]
         time_per_step = time_data[:, 4]
-        plt.figure()
-        plt.plot(
-            steps,
-            total_times,
-            "o",
-            label=f"Actual time {int(total_times[-1]/3600)}(hours)",
-        )
-        plt.xlabel("Step")
-        plt.ylabel("Total time (s)")
-        plt.title(f"{specs['cores']} Cores")
+        # remove outputing steps
+        remove_output = (steps.astype(int) % int(self.params.diag_steps)) != 0
+        steps = steps[remove_output]
+        total_times = total_times[remove_output]
+        time_per_step = time_per_step[remove_output]
 
-        if estimate_steps > 0:
-            p = np.polyfit(
-                steps[steps > fitting_start],
-                total_times[steps > fitting_start],
-                2,
-            )
-            estimate_steps = np.linspace(1, estimate_steps)
-            estimate_times = np.polyval(p, estimate_steps)
-            plt.plot(
-                estimate_steps,
-                estimate_times,
-                label=f"Estimated time {int(estimate_times[-1]/3600)}(hours)",
-            )
-        plt.legend()
-        plt.show()
-
+        # time per step
         plt.figure()
         plt.semilogy(steps, time_per_step)
         plt.xlabel("Step")
         plt.ylabel("Time per step (s)")
         plt.title(f"{specs['cores']} Cores")
+        time_per_step_p = np.polyfit(
+            steps[fitting_range],
+            np.log(time_per_step[fitting_range]),
+            1,
+        )
+        plt.semilogy(
+            steps,
+            np.exp(np.polyval(time_per_step_p, steps)),
+            "--",
+            label=f"slope={time_per_step_p[0]:.1e}",
+        )
+        plt.legend()
         plt.show()
+
+        # total times
+        plt.figure()
+        plt.plot(
+            steps,
+            total_times,
+            "o",
+            label=f"{int(steps[-1])} steps takes {total_times[-1]/3600:.2f}(hours)",
+        )
+        plt.xlabel("Step")
+        plt.ylabel("Total time (s)")
+        plt.title(f"{specs['cores']} Cores")
+        if total_step > 0 and time_per_step_p[0] < 1e-3:
+            print(
+                "Slope is small, consider time per step as constant. \nUsing linear fitting."
+            )
+            p = np.polyfit(
+                steps[fitting_range],
+                total_times[fitting_range],
+                1,
+            )
+            estimate_steps = np.linspace(1, total_step)
+            estimate_times = np.polyval(p, estimate_steps)
+            plt.plot(
+                estimate_steps,
+                estimate_times,
+                label=f"{int(estimate_steps[-1])} steps will take {estimate_times[-1]/3600:.2f}(hours)",
+            )
+        plt.legend()
 
     def average_along_central_axis(self, data: np.array):
         dr = self.params.dr

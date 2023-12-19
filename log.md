@@ -53,6 +53,16 @@ TODO:
 ### diags202312132227
 INFO:
 1. dimensions to 256x2048
-2. set warpx_max_grid_size_x=64, warpx_max_grid_size_x=256, warpx_blocking_factor_x=32, and warpx_blocking_factor_x=128
+2. set warpx_max_grid_size_x=64, warpx_max_grid_size_y=256, warpx_blocking_factor_x=32, and warpx_blocking_factor_y=128
 3. set $dt = 0.5 / \omega_c$
 4. has electric field
+FIXME:
+1. too slow
+
+### diags202312181612
+INFO:
+1. set load_balance_intervals = 50
+2. set warpx_max_grid_size_x=8, warpx_max_grid_size_y=32, warpx_blocking_factor_x=4, and warpx_blocking_factor_y=16
+3. this simulation is 4x faster than diags202312132227
+FIXME:
+1. still not fast enough, we need to simulate a 10ms to 100ms long simulation
