@@ -43,7 +43,7 @@ class Analysis:
         if "paraview.pmd" in self.files:
             self.files.remove("paraview.pmd")
         self.files.sort(key=lambda name: int(name[8:-3]))
-        self.steps = np.sort([0] + [int(file[8:-3]) for file in self.files])
+        self.steps = np.sort([int(file[8:-3]) for file in self.files])
         self.time = self.steps * self.params.dt
 
         # grid for plotting
@@ -228,6 +228,18 @@ class Analysis:
                 label=f"{int(estimate_steps[-1])} steps will take {estimate_times[-1]/3600:.2f}(hours)",
             )
         plt.legend()
+
+    def plot_part_per_cell(self, frame: int):
+        time = self.time[frame]
+        data = self.get_data("part_per_cell", frame)
+        print(f"Total particles: {data.sum()}")
+        plt.figure()
+        plt.pcolormesh(self.R, self.Z, data, cmap="Reds", norm="symlog")
+        plt.colorbar(label="Particle Per Cell")
+        plt.xlabel("$r$ (m)")
+        plt.ylabel("$z$ (m)")
+        plt.title(f"$t$={time:.2e}s")
+        plt.show()
 
     def average_along_central_axis(self, data: np.array):
         dr = self.params.dr
