@@ -1,5 +1,4 @@
 module purge
-module load anaconda3
-module load MistEnv/2021a cuda/11.7.1 gcc/10.3.0 openmpi/4.1.1+ucx-1.10.0 cmake hdf5/1.10.7
+module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 cuda/12.2 hdf5-mpi/1.14.2 python/3.11.5 mpi4py/3.1.4
 module list
-source activate warpx_gpu
+source ~/.venvs/warpx_gpu/bin/activate

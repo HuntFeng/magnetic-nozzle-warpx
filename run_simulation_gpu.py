@@ -90,8 +90,8 @@ class MagneticMirror2D(object):
         params.diag_steps = int(params.total_steps / 100)
 
         # for debug use
-        params.total_steps = 2000
-        params.diag_steps = 100
+        params.total_steps = 100000
+        params.diag_steps = 1000
 
         # calculate the flux from the thermal plasma reservoir
         params.flux_e = (
@@ -115,7 +115,7 @@ class MagneticMirror2D(object):
         self.grid = picmi.CylindricalGrid(
             number_of_cells=[params.Nr, params.Nz],
             warpx_max_grid_size_x=256,  # max num_cells in a grid in r direction
-            warpx_max_grid_size_y=512,  # max num_cells in a grid in z direction
+            warpx_max_grid_size_y=256,  # max num_cells in a grid in z direction
             warpx_blocking_factor_x=128,  # min num_cells in a grid in r direction
             warpx_blocking_factor_y=128,  # min num_cells in a grid in z direction
             lower_bound=[0, -params.Lz / 2.0],
@@ -206,8 +206,9 @@ class MagneticMirror2D(object):
         )
 
         params.inject_nparts_i = params.inject_nparts_e
-        weight_i = params.flux_i * params.dt * \
-            params.Lr / params.inject_nparts_i
+        # weight_i = params.flux_i * params.dt * \
+        #     params.Lr / params.inject_nparts_i
+        weight_i = weight_e
         self.ion_injector = injector.FluxMaxwellian_ZInjector(
             species=self.ions,
             T=params.T_i,
