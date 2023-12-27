@@ -21,7 +21,7 @@ pip install cmake tqdm matplotlib jupyter
 - cmake is required in the virtualenv since warpx will be compiled and build using cmake.
 
 ### Compile WarpX
-Download (WarpX-23.11)[https://github.com/ECP-WarpX/WarpX] to Home directory and rename it to `WarpX-23.11`, then use the `build_warpx.sh` to build WarpX. It is configured to enable RZ coordinate, OMP, python binding (pywarpx), and openpmd (hdf5) output format.
+Download [WarpX-23.11](https://github.com/ECP-WarpX/WarpX/releases/tag/23.11) to Home directory and untar it, then use the `build_warpx.sh` to build WarpX. It is configured to enable RZ coordinate, OMP, python binding (pywarpx), and openpmd (hdf5) output format.
 
 ### Testing and debugging
 To run the simulation interactively, we need to request some gpu resource first
@@ -64,7 +64,7 @@ pip install tqdm matplotlib jupyter
 - no need to install cmake now, because Narval has it by default
 
 ### Compile WarpX
-Download (WarpX-23.11)[https://github.com/ECP-WarpX/WarpX] to Home directory and rename it to `WarpX-23.11`, then use the `build_warpx_gpu.sh` to build WarpX. It is configured to enable RZ coordinate, CUDA, python binding (pywarpx), and openpmd (hdf5) output format.
+Download [WarpX-23.11](https://github.com/ECP-WarpX/WarpX/releases/tag/23.11) to Home directory and untar it, then use the `build_warpx_gpu.sh` to build WarpX. It is configured to enable RZ coordinate, CUDA, python binding (pywarpx), and openpmd (hdf5) output format.
 
 ### Testing and debugging
 To run the simulation interactively, we need to request some gpu resource first
