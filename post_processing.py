@@ -149,7 +149,6 @@ class Analysis:
         with open(output_file) as f:
             text = f.read()
             specs["cores"] = int(regex_core.search(text).group(1))
-            specs["omp_threads"] = int(regex_omp.search(text).group(1))
             step_strings = [s.group(0) for s in regex_step.finditer(text)]
             mlmg_strings = [s.group(0) for s in regex_mlmg.finditer(text)]
 

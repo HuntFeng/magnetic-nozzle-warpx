@@ -4,18 +4,14 @@ Written in Oct 2022 by Roelof Groenewald.
 Edited in Sep 2023 by Hunt Feng, using WarpX 23.11. 
 """
 import os
-import shutil
+import sys
 import numpy as np
-from mpi4py import MPI as mpi
-from pywarpx import callbacks, picmi
-from datetime import datetime
+from pywarpx import callbacks, picmi, libwarpx
 
 import util
 import magnetic_field
 import injector
 from params import Params
-
-comm = mpi.COMM_WORLD
 
 simulation = picmi.Simulation(verbose=1)
 
@@ -73,8 +69,10 @@ class MagneticMirror2D(object):
 
         # the given mirror ratio can only be achieved with the given Lz and
         # B_max for a unique coil radius
-        params.R_coil = 0.5 * params.Lz / np.sqrt(params.R ** (2.0 / 3.0) - 1.0)
-        self.coil = magnetic_field.CoilBField(R=params.R_coil, B_max=params.B_max)
+        params.R_coil = 0.5 * params.Lz / \
+            np.sqrt(params.R ** (2.0 / 3.0) - 1.0)
+        self.coil = magnetic_field.CoilBField(
+            R=params.R_coil, B_max=params.B_max)
         # self.coil.plot_field(params.Lr/2.0/params.R_coil, params.Lz/2.0/params.R_coil)
 
         # simulation timestep
@@ -89,13 +87,14 @@ class MagneticMirror2D(object):
             params.T_i, params.m_i
         )
         params.total_steps = int(
-            np.ceil(params.crossing_times * params.ion_crossing_time / params.dt)
+            np.ceil(params.crossing_times *
+                    params.ion_crossing_time / params.dt)
         )
         params.diag_steps = int(params.total_steps / 100)
 
         # for debug use
-        params.total_steps = 2000
-        params.diag_steps = 100
+        params.total_steps = 5
+        params.diag_steps = 1
 
         # calculate the flux from the thermal plasma reservoir
         params.flux_e = (
@@ -103,7 +102,8 @@ class MagneticMirror2D(object):
             * util.thermal_velocity(params.T_e, util.constants.m_e)
             / np.sqrt(2.0 * np.pi)
         )
-        params.flux_i = params.flux_e * np.sqrt(util.constants.m_e / params.m_i)
+        params.flux_i = params.flux_e * \
+            np.sqrt(util.constants.m_e / params.m_i)
         # params.flux_i = params.n0 * util.thermal_velocity(params.T_i, params.m_i)
 
         # check spatial resolution
@@ -196,8 +196,8 @@ class MagneticMirror2D(object):
         #######################################################################
 
         params.inject_nparts_e = 4000
-        nparts_e = params.inject_nparts_e // comm.size
-        weight_e = params.flux_e * params.dt * params.Lr / (nparts_e * comm.size)
+        weight_e = params.flux_e * params.dt * \
+            params.Lr / params.inject_nparts_e
         self.electron_injector = injector.FluxMaxwellian_ZInjector(
             species=self.electrons,
             T=params.T_e,
@@ -210,8 +210,8 @@ class MagneticMirror2D(object):
         )
 
         params.inject_nparts_i = params.inject_nparts_e
-        nparts_i = nparts_e
-        weight_i = params.flux_i * params.dt * params.Lr / (nparts_i * comm.size)
+        weight_i = params.flux_i * params.dt * \
+            params.Lr / params.inject_nparts_i
         self.ion_injector = injector.FluxMaxwellian_ZInjector(
             species=self.ions,
             T=params.T_i,
@@ -259,25 +259,14 @@ class MagneticMirror2D(object):
         simulation.initialize_warpx()
 
     def run_sim(self):
-        if comm.Get_rank() == 0:
+        if libwarpx.amr.ParallelDescriptor.MyProc() == 0:
             params.save(f"{diags_dirname}/params.json")
-        simulation.write_input_file(file_name=f"{diags_dirname}/wrapx_used_inputs")
+            simulation.write_input_file(
+                file_name=f"{diags_dirname}/warpx_used_inputs")
         simulation.step(params.total_steps)
 
 
-def create_diags_dir():
-    if comm.Get_rank() == 0:
-        if os.path.exists(diags_dirname):
-            shutil.rmtree(diags_dirname)
-        os.mkdir(diags_dirname)
-
-
 if __name__ == "__main__":
-    # diagnostics dir (set name in rank 0 then broadcast it to ensure the name is the same in everyrank)
-    diags_dirname = (
-        f"diags{datetime.now().strftime('%Y%m%d%H%M')}" if comm.Get_rank() == 0 else ""
-    )
-    diags_dirname = comm.bcast(diags_dirname, root=0)
-    create_diags_dir()
+    diags_dirname = sys.argv[1]
     my_2d_mirror = MagneticMirror2D()
     my_2d_mirror.run_sim()

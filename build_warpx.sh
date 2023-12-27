@@ -1,6 +1,6 @@
 #!/bin/bash
 # source the newly created virtualenv
-source ~/.venvs/warpx/bin/activate
+source ~/.venvs/warpx-gpu/bin/activate
 
 # compile warpx
 # enable python binding, openpmd (hdf5) output format
