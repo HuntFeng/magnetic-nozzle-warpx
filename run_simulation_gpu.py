@@ -4,18 +4,14 @@ Written in Oct 2022 by Roelof Groenewald.
 Edited in Sep 2023 by Hunt Feng, using WarpX 23.11. 
 """
 import os
-import shutil
+import sys
 import numpy as np
-from mpi4py import MPI as mpi
-from pywarpx import callbacks, picmi
-from datetime import datetime
+from pywarpx import callbacks, picmi, libwarpx
 
 import util
 import magnetic_field
 import injector
 from params import Params
-
-comm = mpi.COMM_WORLD
 
 simulation = picmi.Simulation(verbose=1)
 
@@ -196,13 +192,13 @@ class MagneticMirror2D(object):
         #######################################################################
 
         params.inject_nparts_e = 4000
-        nparts_e = params.inject_nparts_e // comm.size
-        weight_e = params.flux_e * params.dt * params.Lr / (nparts_e * comm.size)
+        weight_e = params.flux_e * params.dt * \
+            params.Lr / params.inject_nparts_e
         self.electron_injector = injector.FluxMaxwellian_ZInjector(
             species=self.electrons,
             T=params.T_e,
             weight=weight_e,
-            nparts=nparts_e,
+            nparts=params.inject_nparts_e,
             zmin=-params.Lz / 2.0 + 1.0 * params.dz,
             zmax=-params.Lz / 2.0 + 2.0 * params.dz,
             rmin=0,
@@ -210,13 +206,13 @@ class MagneticMirror2D(object):
         )
 
         params.inject_nparts_i = params.inject_nparts_e
-        nparts_i = nparts_e
-        weight_i = params.flux_i * params.dt * params.Lr / (nparts_i * comm.size)
+        weight_i = params.flux_i * params.dt * \
+            params.Lr / params.inject_nparts_i
         self.ion_injector = injector.FluxMaxwellian_ZInjector(
             species=self.ions,
             T=params.T_i,
             weight=weight_i,
-            nparts=nparts_i,
+            nparts=params.inject_nparts_i,
             zmin=-params.Lz / 2.0 + 1.0 * params.dz,
             zmax=-params.Lz / 2.0 + 2.0 * params.dz,
             rmin=0,
@@ -259,25 +255,12 @@ class MagneticMirror2D(object):
         simulation.initialize_warpx()
 
     def run_sim(self):
-        if comm.Get_rank() == 0:
+        if libwarpx.amr.ParallelDescriptor.MyProc() == 0:
             params.save(f"{diags_dirname}/params.json")
-        simulation.write_input_file(file_name=f"{diags_dirname}/wrapx_used_inputs")
+            simulation.write_input_file(file_name=f"{diags_dirname}/warpx_used_inputs")
         simulation.step(params.total_steps)
 
-
-def create_diags_dir():
-    if comm.Get_rank() == 0:
-        if os.path.exists(diags_dirname):
-            shutil.rmtree(diags_dirname)
-        os.mkdir(diags_dirname)
-
-
 if __name__ == "__main__":
-    # diagnostics dir (set name in rank 0 then broadcast it to ensure the name is the same in everyrank)
-    diags_dirname = (
-        f"diags{datetime.now().strftime('%Y%m%d%H%M')}" if comm.Get_rank() == 0 else ""
-    )
-    diags_dirname = comm.bcast(diags_dirname, root=0)
-    create_diags_dir()
+    diags_dirname = sys.argv[1]
     my_2d_mirror = MagneticMirror2D()
     my_2d_mirror.run_sim()

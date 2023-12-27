@@ -3,11 +3,11 @@
 #SBATCH --gpus-per-node=4
 #SBATCH --partition=compute_full_node
 #SBATCH --time=1:00:00
-#SBATCH --output=output_%j.log
 #SBATCH --mail-type=end 
 #SBATCH --mail-user=hunt.feng@usask.ca 
 
-export MPICH_GPU_SUPPORT_ENABLED=1
 cd $SCRATCH/magnetic-nozzle-warpx
 source warpx_gpu.profile
-srun --gpus=4 python run_simulation_gpu.py
+dirname="diags$(date '+%Y%m%d%H%M')"
+mkdir $dirname
+srun python run_simulation_gpu.py $dirname &> $dirname/output.log
