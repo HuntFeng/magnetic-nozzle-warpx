@@ -205,7 +205,8 @@ class Analysis:
             steps,
             total_times,
             "o",
-            label=f"{int(steps[-1])} steps takes {total_times[-1]/3600:.2f}(hours)",
+            # use self.steps here because the last step was removed
+            label=f"{int(self.steps[-1])} steps takes {total_times[-1]/3600:.2f}(hours)",
         )
         plt.xlabel("Step")
         plt.ylabel("Total time (s)")
@@ -292,6 +293,7 @@ class Analysis:
             plt.plot(self.z, normed_phi[0, :])
             plt.xlabel("$z$ (m)")
             plt.ylabel("$\\phi/T_e$ ")
+            plt.title(f"$t$={time:.2e}s")
             fig.show()
 
     def plot_momentum(
