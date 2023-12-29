@@ -90,8 +90,8 @@ class MagneticMirror2D(object):
         params.diag_steps = int(params.total_steps / 100)
 
         # for debug use
-        params.total_steps = 100000
-        params.diag_steps = 1000
+        params.total_steps = 2000
+        params.diag_steps = 100
 
         # calculate the flux from the thermal plasma reservoir
         params.flux_e = (

@@ -126,6 +126,7 @@ class Analysis:
 
         regex_core = re.compile(r"MPI initialized with ([0-9]*) MPI processes")
         regex_omp = re.compile(r"OMP initialized with ([0-9]*) OMP threads")
+        regex_device = re.compile(r"CUDA initialized with ([0-9]*) device")
         regex_step = re.compile(
             r"STEP [0-9]* ends.*\n.* Avg\. per step = ([0-9]*[.])?[0-9]+ s",
             re.MULTILINE,
@@ -148,7 +149,14 @@ class Analysis:
 
         with open(output_file) as f:
             text = f.read()
-            specs["cores"] = int(regex_core.search(text).group(1))
+            for key, regex in [
+                ("cores", regex_core),
+                ("omps", regex_omp),
+                ("devices", regex_device),
+            ]:
+                match = regex.search(text)
+                if match:
+                    specs[key] = int(match.group(1))
             step_strings = [s.group(0) for s in regex_step.finditer(text)]
             mlmg_strings = [s.group(0) for s in regex_mlmg.finditer(text)]
 
@@ -163,7 +171,7 @@ class Analysis:
 
         return specs, time_data
 
-    def plot_time(self, total_step: int = 0, fitting_range: range = [500, 1500]):
+    def plot_time(self, total_step: int = None, fitting_range: range = None):
         """
         Plot time vs step graph.
         If total_step is given, estimate the time.
@@ -184,19 +192,23 @@ class Analysis:
         plt.semilogy(steps, time_per_step)
         plt.xlabel("Step")
         plt.ylabel("Time per step (s)")
-        plt.title(f"{specs['cores']} Cores")
-        time_per_step_p = np.polyfit(
-            steps[fitting_range],
-            np.log(time_per_step[fitting_range]),
-            1,
-        )
-        plt.semilogy(
-            steps,
-            np.exp(np.polyval(time_per_step_p, steps)),
-            "--",
-            label=f"slope={time_per_step_p[0]:.1e}",
-        )
-        plt.legend()
+        if "devices" in specs:
+            plt.title(f"{specs['devices']} Devices")
+        elif "cores" in specs:
+            plt.title(f"{specs['cores']} Cores")
+        if total_step is not None or fitting_range is not None:
+            time_per_step_p = np.polyfit(
+                steps[fitting_range or Ellipsis],
+                np.log(time_per_step[fitting_range or Ellipsis]),
+                1,
+            )
+            plt.semilogy(
+                steps,
+                np.exp(np.polyval(time_per_step_p, steps)),
+                "--",
+                label=f"slope={time_per_step_p[0]:.1e}",
+            )
+            plt.legend()
         plt.show()
 
         # total times
@@ -210,14 +222,17 @@ class Analysis:
         )
         plt.xlabel("Step")
         plt.ylabel("Total time (s)")
-        plt.title(f"{specs['cores']} Cores")
-        if total_step > 0 and time_per_step_p[0] < 1e-3:
+        if "devices" in specs:
+            plt.title(f"{specs['devices']} Devices")
+        elif "cores" in specs:
+            plt.title(f"{specs['cores']} Cores")
+        if total_step is not None and total_step > 0 and time_per_step_p[0] < 1e-3:
             print(
                 "Slope is small, consider time per step as constant. \nUsing linear fitting."
             )
             p = np.polyfit(
-                steps[fitting_range],
-                total_times[fitting_range],
+                steps[fitting_range or Ellipsis],
+                total_times[fitting_range or Ellipsis],
                 1,
             )
             estimate_steps = np.linspace(1, total_step)
@@ -228,6 +243,7 @@ class Analysis:
                 label=f"{int(estimate_steps[-1])} steps will take {estimate_times[-1]/3600:.2f}(hours)",
             )
         plt.legend()
+        plt.show()
 
     def plot_part_per_cell(self, frame: int):
         time = self.time[frame]
