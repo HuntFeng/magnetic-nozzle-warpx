@@ -70,5 +70,11 @@ FIXME:
 ### diags202312191413
 INFO:
 1. double the cores from 80 to 160
-2. even slower than 80 core
+2. even slower than 80 cores
 3. the setup in diags202312181612 is optimal for cpu simulation so far
+
+### diags202312271650
+INFO:
+1. try to setup multi-gpu run
+FIXME:
+1. WarpX only saw 1 gpu, don't know why

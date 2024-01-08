@@ -1,7 +1,8 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=4
-#SBATCH --time=1:00:00
+#SBATCH --ntasks=1
+#SBATCH --time=0:30:00
 #SBATCH --mem=1G
 #SBATCH --mail-type=end 
 #SBATCH --mail-user=hunt.feng@usask.ca 
@@ -10,4 +11,9 @@ cd $SCRATCH/magnetic-nozzle-warpx
 source warpx_gpu.profile
 dirname="diags$(date '+%Y%m%d%H%M')"
 mkdir $dirname
-srun --gpus=4 python run_simulation_gpu.py $dirname &> $dirname/output.log
+srun python run_simulation_gpu.py $dirname &> $dirname/output.log
+# python run_simulation_gpu.py $dirname &> $dirname/output.log
+# mpirun -np $SLURM_NTASKS bash -c "
+#     export CUDA_VISIBLE_DEVICES=$SLURM_LOCALID;
+#     python run_simulation_gpu.py $dirname &> $dirname/output.log" \
+#     > $dirname/output.log
