@@ -78,3 +78,9 @@ INFO:
 1. try to setup multi-gpu run
 FIXME:
 1. WarpX only saw 1 gpu, don't know why
+
+### diags202301082119
+INFO:
+1. fixed multi-gpu issue by changing ntasks=4 in job script
+FIXME:
+1. the speed is even slower than 1 GPU, need to optimize the partion
