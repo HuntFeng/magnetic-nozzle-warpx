@@ -7,6 +7,7 @@ import os
 import sys
 import numpy as np
 from pywarpx import callbacks, picmi, libwarpx
+from boundary_condition import BoundaryCondition
 
 import util
 import magnetic_field
@@ -90,8 +91,8 @@ class MagneticMirror2D(object):
         params.diag_steps = int(params.total_steps / 100)
 
         # for debug use
-        params.total_steps = 2000
-        params.diag_steps = 100
+        params.total_steps = 100000
+        params.diag_steps = 1000
 
         # calculate the flux from the thermal plasma reservoir
         params.flux_e = (
@@ -125,6 +126,10 @@ class MagneticMirror2D(object):
             lower_boundary_conditions_particles=["reflecting", "absorbing"],
             upper_boundary_conditions_particles=["absorbing", "absorbing"],
         )
+
+        bc = BoundaryCondition()
+        bc.install()
+
         simulation.time_step_size = params.dt
         simulation.max_steps = params.total_steps
         simulation.load_balance_intervals = 50
@@ -192,8 +197,7 @@ class MagneticMirror2D(object):
         #######################################################################
 
         params.inject_nparts_e = 4000
-        weight_e = params.flux_e * params.dt * \
-            params.Lr / params.inject_nparts_e
+        weight_e = params.flux_e * params.dt * params.Lr / params.inject_nparts_e
         self.electron_injector = injector.FluxMaxwellian_ZInjector(
             species=self.electrons,
             T=params.T_e,
@@ -260,6 +264,7 @@ class MagneticMirror2D(object):
             params.save(f"{diags_dirname}/params.json")
             simulation.write_input_file(file_name=f"{diags_dirname}/warpx_used_inputs")
         simulation.step(params.total_steps)
+
 
 if __name__ == "__main__":
     diags_dirname = sys.argv[1]
