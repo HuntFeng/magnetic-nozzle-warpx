@@ -9,7 +9,7 @@
 #SBATCH --mail-user=hunt.feng@usask.ca 
 
 cd $SCRATCH/magnetic-nozzle-warpx
-source warpx_gpu.profile
+source warpx.profile --gpu
 dirname="diags$(date '+%Y%m%d%H%M')"
 mkdir $dirname
-srun --gpus-per-task=1 python run_simulation_gpu.py $dirname &> $dirname/output.log
+srun --gpus-per-task=1 python run_simulation_gpu.py -out $dirname -gpu &> $dirname/output.log

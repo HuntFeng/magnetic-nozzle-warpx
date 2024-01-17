@@ -3,8 +3,7 @@ after the work of Wetherton et al. 2021.
 Written in Oct 2022 by Roelof Groenewald.
 Edited in Sep 2023 by Hunt Feng, using WarpX 23.11. 
 """
-import os
-import sys
+import argparse
 import numpy as np
 from pywarpx import callbacks, picmi, libwarpx
 from boundary_condition import BoundaryCondition
@@ -100,8 +99,12 @@ class MagneticMirror2D(object):
             * util.thermal_velocity(params.T_e, util.constants.m_e)
             / np.sqrt(2.0 * np.pi)
         )
-        params.flux_i = params.flux_e * np.sqrt(util.constants.m_e / params.m_i)
-        # params.flux_i = params.n0 * util.thermal_velocity(params.T_i, params.m_i)
+        # make the injection currect quasineutral
+        params.flux_i = (
+            params.flux_e
+            * np.sqrt(util.constants.m_i / params.m_e)
+            * np.sqrt(params.T_e / params.T_i)
+        )
 
         # check spatial resolution
         params.debye_length = util.debye_length(params.T_e, params.n0)
@@ -112,13 +115,16 @@ class MagneticMirror2D(object):
         #######################################################################
         # Set geometry, boundary conditions and timestep                      #
         #######################################################################
-
+        warpx_max_grid_size_x = 8 if args.cpu else 256
+        warpx_max_grid_size_y = 32 if args.cpu else 256
+        warpx_blocking_factor_x = 4 if args.cpu else 128
+        warpx_blocking_factor_y = 16 if args.cpu else 128
         self.grid = picmi.CylindricalGrid(
             number_of_cells=[params.Nr, params.Nz],
-            warpx_max_grid_size_x=8,  # max num_cells in a grid in r direction
-            warpx_max_grid_size_y=32,  # max num_cells in a grid in z direction
-            warpx_blocking_factor_x=4,  # min num_cells in a grid in r direction
-            warpx_blocking_factor_y=16,  # min num_cells in a grid in z direction
+            warpx_max_grid_size_x=warpx_max_grid_size_x,  # max num_cells in a grid in r direction
+            warpx_max_grid_size_y=warpx_max_grid_size_y,  # max num_cells in a grid in z direction
+            warpx_blocking_factor_x=warpx_blocking_factor_x,  # min num_cells in a grid in r direction
+            warpx_blocking_factor_y=warpx_blocking_factor_y,  # min num_cells in a grid in z direction
             lower_bound=[0, -params.Lz / 2.0],
             upper_bound=[params.Lr, params.Lz / 2.0],
             lower_boundary_conditions=["none", "dirichlet"],
@@ -126,9 +132,6 @@ class MagneticMirror2D(object):
             lower_boundary_conditions_particles=["reflecting", "absorbing"],
             upper_boundary_conditions_particles=["absorbing", "absorbing"],
         )
-
-        bc = BoundaryCondition()
-        bc.install()
 
         simulation.time_step_size = params.dt
         simulation.max_steps = params.total_steps
@@ -197,7 +200,9 @@ class MagneticMirror2D(object):
         #######################################################################
 
         params.inject_nparts_e = 4000
-        weight_e = params.flux_e * params.dt * params.Lr / params.inject_nparts_e
+        r_inject = params.Lr / 2
+        area_inject = util.constants.pi * r_inject**2
+        weight_e = params.flux_e * params.dt * area_inject / params.inject_nparts_e
         self.electron_injector = injector.FluxMaxwellian_ZInjector(
             species=self.electrons,
             T=params.T_e,
@@ -206,11 +211,11 @@ class MagneticMirror2D(object):
             zmin=-params.Lz / 2.0 + 1.0 * params.dz,
             zmax=-params.Lz / 2.0 + 2.0 * params.dz,
             rmin=0,
-            rmax=params.Lr / 2,
+            rmax=r_inject,
         )
 
         params.inject_nparts_i = params.inject_nparts_e
-        weight_i = params.flux_i * params.dt * params.Lr / params.inject_nparts_i
+        weight_i = params.flux_i * params.dt * area_inject / params.inject_nparts_i
         self.ion_injector = injector.FluxMaxwellian_ZInjector(
             species=self.ions,
             T=params.T_i,
@@ -219,7 +224,7 @@ class MagneticMirror2D(object):
             zmin=-params.Lz / 2.0 + 1.0 * params.dz,
             zmax=-params.Lz / 2.0 + 2.0 * params.dz,
             rmin=0,
-            rmax=params.Lr / 2,
+            rmax=r_inject,
         )
 
         callbacks.installparticleinjection(self.electron_injector.inject_parts)
@@ -235,7 +240,7 @@ class MagneticMirror2D(object):
             period=params.diag_steps,
             data_list=["phi", "rho_electrons", "rho_ions", "part_per_cell"],
             warpx_dump_rz_modes=True,
-            write_dir=diags_dirname,
+            write_dir=args.outdir,
             warpx_format="openpmd",
             warpx_openpmd_backend="h5",
         )
@@ -244,7 +249,7 @@ class MagneticMirror2D(object):
             period=params.diag_steps,
             species=[self.ions, self.electrons],
             data_list=["momentum", "weighting"],
-            write_dir=diags_dirname,
+            write_dir=args.outdir,
             warpx_format="openpmd",
             warpx_openpmd_backend="h5",
         )
@@ -259,12 +264,20 @@ class MagneticMirror2D(object):
 
     def run_sim(self):
         if libwarpx.amr.ParallelDescriptor.MyProc() == 0:
-            params.save(f"{diags_dirname}/params.json")
-            simulation.write_input_file(file_name=f"{diags_dirname}/warpx_used_inputs")
+            params.save(f"{args.outdir}/params.json")
+            simulation.write_input_file(file_name=f"{args.outdir}/warpx_used_inputs")
         simulation.step(params.total_steps)
 
 
 if __name__ == "__main__":
-    diags_dirname = sys.argv[1]
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-out", "--outdir", help="Path to output directory")
+    parser.add_argument("-cpu", "--cpu", action="store_true", help="Set backend to CPU")
+    parser.add_argument("-gpu", "--gpu", action="store_true", help="Set backend to GPU")
+    args = parser.parse_args()
+    if not args.outdir:
+        raise RuntimeError("Output directory must be set")
+    if args.cpu == args.gpu:
+        raise RuntimeError(f"Cannot set backend to both CPU and GPU to {args.cpu}")
     my_2d_mirror = MagneticMirror2D()
     my_2d_mirror.run_sim()

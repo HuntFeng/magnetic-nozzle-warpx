@@ -1,13 +1,27 @@
 #!/bin/bash
+echo -n "Select backend (type number): 
+1) CPU (OMP)
+2) GPU (CUDA)
+"
+read choice
 # source the newly created virtualenv
-source ~/.venvs/warpx-gpu/bin/activate
+if [[ $choice == "1" ]]; then
+  source $SCRATCH/magnetic-nozzle-warpx/warpx.profile
+  backend="OMP"
+elif [[ $choice == "2" ]]; then
+  source $SCRATCH/magnetic-nozzle-warpx/warpx_gpu.profile
+  backend="CUDA"
+else
+  echo "Please enter a valid choice"
+  exit 0
+fi
 
 # compile warpx
 # enable python binding, openpmd (hdf5) output format
 warpx=WarpX-23.11
 echo "compile $warpx"
 cmake -S $HOME/$warpx -B $HOME/$warpx/build -DWarpX_DIMS=RZ \
-  -DWarpX_COMPUTE=OMP \
+  -DWarpX_COMPUTE=$backend \
   -DWARX_MPI=ON \
   -DWarpX_QED=OFF \
   -DWarpX_OPENPMD=ON \
