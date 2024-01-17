@@ -81,7 +81,7 @@ srun python run_simulation.py -out <diags_folder> -gpu
 - The script will need the path to a diagnostics folder `<diags_folder>`.
 
 ### Use Slurm
-To submit a job to Slurm. simply use the slurm script `nozzle`,
+To submit a job to Slurm. simply use the slurm script `nozzle_gpu`,
 ```
 sbatch nozzle_gpu
 ```
