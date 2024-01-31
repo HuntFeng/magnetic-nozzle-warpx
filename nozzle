@@ -2,6 +2,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=80
 #SBATCH --time=10:00:00
+#SBATCH --output=slurm_%j.out
 #SBATCH --mail-type=end 
 #SBATCH --mail-user=hunt.feng@usask.ca 
 
@@ -9,4 +10,4 @@ cd $SCRATCH/magnetic-nozzle-warpx
 source warpx.profile --cpu 
 dirname="diags$(date '+%Y%m%d%H%M')"
 mkdir $dirname
-mpirun python run_simulation.py -out $dirname -cpu &> $dirname/output.log
+mpirun python run_simulation.py -out $dirname -cpu &> $dirname/output_$SLURM_JOB_ID.log

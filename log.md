@@ -84,3 +84,10 @@ INFO:
 1. fixed multi-gpu issue by changing ntasks=4 in job script
 FIXME:
 1. the speed is even slower than 1 GPU, need to optimize the partion
+
+### diags_phi=0T_e, diags_phi=-5T_e, diags_phi=-10T_e
+INFO:
+1. planning to do PID control at the nozzle end to make the ourflow current density 0
+2. set phi=0T_e,-5T_e,-10T_e at the nozzle end to see how current density changed (tuning proportional control)
+3. as the potential drops, the current density becomes more positive
+4. the process of tuning PID control is TOO slow use another method instead

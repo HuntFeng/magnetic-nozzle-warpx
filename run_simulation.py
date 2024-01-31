@@ -6,7 +6,6 @@ Edited in Sep 2023 by Hunt Feng, using WarpX 23.11.
 import argparse
 import numpy as np
 from pywarpx import callbacks, picmi, libwarpx
-from boundary_condition import BoundaryCondition
 
 import util
 import magnetic_field
@@ -28,6 +27,10 @@ params.Nr = 256
 params.Nz = 2048
 # params.Nr = 16
 # params.Nz = 32
+
+# domain size, unit: m
+params.dr = params.Lr / params.Nr
+params.dz = params.Lz / params.Nz
 
 # mirror ratio
 # R and Bmax determine the coil radius
@@ -63,9 +66,8 @@ class MagneticMirror2D(object):
         params.T_e = 300
         params.T_i = 1
 
-        # domain size, unit: m
-        params.dr = params.Lr / params.Nr
-        params.dz = params.Lz / params.Nz
+        params.v_Te = util.thermal_velocity(params.T_e, params.m_e)
+        params.v_Ti = util.thermal_velocity(params.T_i, params.m_i)
 
         # the given mirror ratio can only be achieved with the given Lz and
         # B_max for a unique coil radius
@@ -75,15 +77,11 @@ class MagneticMirror2D(object):
 
         # simulation timestep
         # params.dt = 0.07 / util.plasma_freq(params.n0)
-        # params.dt = params.dz / (
-        #     5.0 * util.thermal_velocity(params.T_e, params.m_e)
-        # )
-        params.dt = 0.5 / util.cyclotron_freq(params.m_e, params.B_max)
+        params.dt = params.dz / (5.0 * params.v_Te)
+        # params.dt = 0.5 / util.cyclotron_freq(params.m_e, params.B_max)
 
         # calculate the ion crossing time to get the total simulation time
-        params.ion_crossing_time = params.Lz / util.thermal_velocity(
-            params.T_i, params.m_i
-        )
+        params.ion_crossing_time = params.Lz / params.v_Ti
         params.total_steps = int(
             np.ceil(params.crossing_times * params.ion_crossing_time / params.dt)
         )
@@ -94,17 +92,9 @@ class MagneticMirror2D(object):
         params.diag_steps = 1000
 
         # calculate the flux from the thermal plasma reservoir
-        params.flux_e = (
-            params.n0
-            * util.thermal_velocity(params.T_e, util.constants.m_e)
-            / np.sqrt(2.0 * np.pi)
-        )
+        params.flux_e = params.n0 * params.v_Te
         # make the injection currect quasineutral
-        params.flux_i = (
-            params.flux_e
-            * np.sqrt(util.constants.m_i / params.m_e)
-            * np.sqrt(params.T_e / params.T_i)
-        )
+        params.flux_i = params.flux_e
 
         # check spatial resolution
         params.debye_length = util.debye_length(params.T_e, params.n0)
@@ -238,35 +228,50 @@ class MagneticMirror2D(object):
             name="diag",
             grid=self.grid,
             period=params.diag_steps,
-            data_list=["phi", "rho_electrons", "rho_ions", "part_per_cell"],
+            data_list=["phi", "rho_electrons", "rho_ions", "part_per_cell", "J", "E"],
             warpx_dump_rz_modes=True,
             write_dir=args.outdir,
             warpx_format="openpmd",
             warpx_openpmd_backend="h5",
         )
-        self.particle_diag = picmi.ParticleDiagnostic(
-            name="diag",
-            period=params.diag_steps,
-            species=[self.ions, self.electrons],
-            data_list=["momentum", "weighting"],
-            write_dir=args.outdir,
-            warpx_format="openpmd",
-            warpx_openpmd_backend="h5",
-        )
         simulation.add_diagnostic(self.field_diag)
-        simulation.add_diagnostic(self.particle_diag)
 
+        # self.particle_diag = picmi.ParticleDiagnostic(
+        #     name="diag",
+        #     period=params.diag_steps,
+        #     species=[self.ions, self.electrons],
+        #     data_list=["momentum", "weighting"],
+        #     write_dir=args.outdir,
+        #     warpx_format="openpmd",
+        #     warpx_openpmd_backend="h5",
+        # )
+        # simulation.add_diagnostic(self.particle_diag)
+
+        self.checkpoint = picmi.Checkpoint(
+            name="checkpoint",
+            period=params.total_steps // 4,
+            write_dir=args.outdir,
+            warpx_file_prefix="checkpoint",
+        )
+        simulation.add_diagnostic(self.checkpoint)
+
+    def run_sim(self, restart_file: str = None):
         #######################################################################
         # Initialize run and print diagnostic info                            #
         #######################################################################
         simulation.initialize_inputs()
         simulation.initialize_warpx()
-
-    def run_sim(self):
-        if libwarpx.amr.ParallelDescriptor.MyProc() == 0:
-            params.save(f"{args.outdir}/params.json")
-            simulation.write_input_file(file_name=f"{args.outdir}/warpx_used_inputs")
-        simulation.step(params.total_steps)
+        if restart_file is None:
+            if libwarpx.amr.ParallelDescriptor.MyProc() == 0:
+                params.save(f"{args.outdir}/params.json")
+                simulation.write_input_file(
+                    file_name=f"{args.outdir}/warpx_used_inputs"
+                )
+            simulation.step(params.total_steps)
+        else:
+            simulation.amr_restart = restart_file
+            step_number = simulation.extension.warpx.getistep(lev=0)
+            simulation.step(params.total_steps - step_number)
 
 
 if __name__ == "__main__":
@@ -274,6 +279,7 @@ if __name__ == "__main__":
     parser.add_argument("-out", "--outdir", help="Path to output directory")
     parser.add_argument("-cpu", "--cpu", action="store_true", help="Set backend to CPU")
     parser.add_argument("-gpu", "--gpu", action="store_true", help="Set backend to GPU")
+    parser.add_argument("-restart", "--restart", help="Set restart file")
     args = parser.parse_args()
     if not args.outdir:
         raise RuntimeError("Output directory must be set")
