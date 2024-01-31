@@ -6,6 +6,7 @@ Edited in Sep 2023 by Hunt Feng, using WarpX 23.11.
 import argparse
 import numpy as np
 from pywarpx import callbacks, picmi, libwarpx
+from boundary_condition import CurrentFreeBoundaryCondition
 
 import util
 import magnetic_field
@@ -184,6 +185,12 @@ class MagneticMirror2D(object):
 
         simulation.add_species(self.electrons, layout=layout)
         simulation.add_species(self.ions, layout=layout)
+
+        #######################################################################
+        # Boundary condition
+        #######################################################################
+        bc = CurrentFreeBoundaryCondition(self.params)
+        bc.install()
 
         #######################################################################
         # Particle injection                                                  #
