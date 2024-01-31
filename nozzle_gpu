@@ -2,7 +2,7 @@
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --time=4:00:00
+#SBATCH --time=2:30:00
 #SBATCH --mem=1G
 #SBATCH --output=slurm_%j.out
 #SBATCH --mail-type=end 
@@ -12,4 +12,4 @@ cd $SCRATCH/magnetic-nozzle-warpx
 source warpx.profile --gpu
 dirname="diags$(date '+%Y%m%d%H%M')"
 mkdir $dirname
-srun --gpus-per-task=1 python run_simulation_gpu.py -out $dirname -gpu &> $dirname/output.log
+srun --gpus-per-task=1 python run_simulation.py -out $dirname -gpu &> $dirname/output_$SLURM_JOB_ID.log

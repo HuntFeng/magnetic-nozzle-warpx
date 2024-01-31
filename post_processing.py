@@ -22,13 +22,19 @@ FieldKey = Literal[
     "n_ions",
     "rho_electrons",
     "rho_ions",
-    "mz_electrons",
-    "mz_ions",
-    "mr_electrons",
-    "mr_ions",
     "phi",
     "normed_phi",
     "part_per_cell",
+    "Jr",
+    "Jt",
+    "Jz",
+    "Er",
+    "Et",
+    "Ez",
+    # "mz_electrons",
+    # "mz_ions",
+    # "mr_electrons",
+    # "mr_ions",
 ]
 Direction = Literal["r", "z"]
 PlotType = Literal["slice", "line"]
@@ -104,6 +110,24 @@ class Analysis:
             case "part_per_cell":
                 # this field has exactly 2 dimensions
                 return np.array(file[f"data/{self.steps[frame]}/fields/{key}"]).T
+            case "Jz":
+                data = np.array(file[f"data/{self.steps[frame]}/fields/j/z"])
+                return data.T[:, :, 0]
+            case "Jt":
+                data = np.array(file[f"data/{self.steps[frame]}/fields/j/t"])
+                return data.T[:, :, 0]
+            case "Jr":
+                data = np.array(file[f"data/{self.steps[frame]}/fields/j/r"])
+                return data.T[:, :, 0]
+            case "Ez":
+                data = np.array(file[f"data/{self.steps[frame]}/fields/E/z"])
+                return data.T[:, :, 0]
+            case "Et":
+                data = np.array(file[f"data/{self.steps[frame]}/fields/E/t"])
+                return data.T[:, :, 0]
+            case "Er":
+                data = np.array(file[f"data/{self.steps[frame]}/fields/E/r"])
+                return data.T[:, :, 0]
             case _:
                 if not key.startswith("m"):
                     raise KeyError()
@@ -260,10 +284,11 @@ class Analysis:
     def average_along_central_axis(self, data: np.array):
         dr = self.params.dr
         Nz = self.params.Nz
-        R = 5 * dr
-        r_along_z = np.repeat(np.arange(dr / 2, R, dr), Nz).reshape(5, -1)
+        num_cell = self.params.Nr // 10
+        R = num_cell * dr
+        r_along_z = np.repeat(np.arange(dr / 2, R, dr), Nz).reshape(num_cell, -1)
         # \int_0^R 2\pi rdr f(r) / \pi R^2
-        return np.sum(2 * r_along_z * dr * data[:5, :] / R**2, axis=0)
+        return np.sum(2 * r_along_z * dr * data[:num_cell, :] / R**2, axis=0)
 
     def plot_density(self, frame: int, plot_type: PlotType = "slice"):
         time = self.time[frame]
@@ -309,6 +334,28 @@ class Analysis:
             plt.plot(self.z, normed_phi[0, :])
             plt.xlabel("$z$ (m)")
             plt.ylabel("$\\phi/T_e$ ")
+            plt.title(f"$t$={time:.2e}s")
+            fig.show()
+
+    def plot_current_density(
+        self, frame: int, direction: Direction = "z", plot_type: PlotType = "slice"
+    ):
+        time = self.time[frame]
+        J = self.get_data("J" + direction, frame)
+        if plot_type == "slice":
+            plt.figure()
+            plt.pcolormesh(self.R, self.Z, J, cmap="coolwarm")
+            plt.colorbar(label=f"$J_{direction}$")
+            plt.xlabel("$r$ (m)")
+            plt.ylabel("$z$ (m)")
+            plt.title(f"$t$={time:.2e}s")
+            plt.show()
+        else:
+            fig = plt.figure()
+            mean_J = self.average_along_central_axis(J)
+            plt.plot(self.z[10:], mean_J[10:])
+            plt.xlabel("$z$ (m)")
+            plt.ylabel(f"$J_{direction}$" + " (A/m$^{2}$)")
             plt.title(f"$t$={time:.2e}s")
             fig.show()
 
@@ -407,42 +454,77 @@ class Analysis:
         anime = FuncAnimation(fig, animate, frames=tqdm(range(len(self.steps))))
         anime.save(f"{self.dirname}/slice_plot_{field_type}.mp4")
 
-    def animate_line(self, field_type: Literal["density", "momentum", "potential"]):
+    def animate_line(
+        self, field_type: Literal["density", "momentum", "potential", "current_density"]
+    ):
+        limits = lambda a, b: (
+            (b + a) / 2 - 1.1 * (b - a) / 2,
+            (b + a) / 2 + 1.1 * (b - a) / 2,
+        )
         fig, ax = plt.subplots(1, 1)
+        ax.set_xlabel("$z$ (m)")
         frame = 0
         if field_type == "density":
-            n_e = self.get_data("n_electrons", frame)[0, :]
-            n_i = self.get_data("n_ions", frame)[0, :]
-            (ln1,) = ax.plot(self.z, n_e, color="blue", label="$n_e$")
-            (ln2,) = ax.plot(self.z, n_i, color="red", label="$n_i$")
+            n_e = self.get_data("n_electrons", frame)
+            n_i = self.get_data("n_ions", frame)
+            mean_n_e = self.average_along_central_axis(n_e)
+            mean_n_i = self.average_along_central_axis(n_i)
+            (ln1,) = ax.semilogy(self.z, mean_n_e, ".", color="blue", label="$n_e$")
+            (ln2,) = ax.semilogy(self.z, mean_n_i, ".", color="red", label="$n_i$")
+            ax.set_ylabel("$n$ (m$^{-3}$)")
         elif field_type == "momentum":
             mz_e = self.get_data("mz_electrons", frame)[0, :]
             mz_i = self.get_data("mz_ions", frame)[0, :]
             (ln1,) = ax.plot(self.z, mz_e, label="$m_{ze}$")
             (ln2,) = ax.plot(self.z, mz_i, label="$m_{zi}$")
+        elif field_type == "current_density":
+            Jz = self.get_data("Jz", frame)
+            mean_Jz = self.average_along_central_axis(Jz)
+            (ln,) = ax.plot(self.z[10:], mean_Jz[10:])
+            ax.set_ylabel("$J_z$ (A/m$^{2}$)")
         else:
-            phi = self.get_data("phi", frame)[0, :]
-            (ln,) = ax.plot(self.z, phi, label="$\\phi$")
+            phi = self.get_data("phi", frame)
+            mean_phi = self.average_along_central_axis(phi)
+            mean_phi /= self.params.T_e
+            (ln,) = ax.plot(self.z, mean_phi)
+            ax.set_ylabel("$\\phi/T_e$")
         time = self.time[frame]
         fig.suptitle(f"$t$={time:.2e}s")
         ax.legend()
 
         def animate(frame: int):
             if field_type == "density":
-                n_e = self.get_data("n_electrons", frame)[0, :]
-                n_i = self.get_data("n_ions", frame)[0, :]
-                ln1.set_data(self.z, n_e)
-                ln2.set_data(self.z, n_i)
+                n_e = self.get_data("n_electrons", frame)
+                n_i = self.get_data("n_ions", frame)
+                mean_n_e = self.average_along_central_axis(n_e)
+                mean_n_i = self.average_along_central_axis(n_i)
+                ln1.set_data(self.z, mean_n_e)
+                ln2.set_data(self.z, mean_n_i)
+                ax.set_ylim(
+                    limits(
+                        min(mean_n_e.min(), mean_n_i.min()),
+                        max(mean_n_e.max(), mean_n_i.max()),
+                    )
+                )
             elif field_type == "momentum":
                 mz_e = self.get_data("mz_electrons", frame)[0, :]
                 mz_i = self.get_data("mz_ions", frame)[0, :]
                 ln1.set_data(self.z, mz_e)
                 ln2.set_data(self.z, mz_i)
+            elif field_type == "current_density":
+                Jz = self.get_data("Jz", frame)
+                mean_Jz = self.average_along_central_axis(Jz)
+                ln.set_data(self.z[10:], mean_Jz[10:])
+                ax.set_ylim(limits(mean_Jz[10:].min(), mean_Jz[10:].max()))
             else:
-                phi = self.get_data("phi", frame)[0, :]
-                ln.set_data(self.z, phi)
+                phi = self.get_data("phi", frame)
+                mean_phi = self.average_along_central_axis(phi)
+                mean_phi /= self.params.T_e
+                ln.set_data(self.z, mean_phi)
+                ax.set_ylim(limits(mean_phi.min(), mean_phi.max()))
             time = self.time[frame]
             fig.suptitle(f"$t$={time:.2e}s")
+            fig.tight_layout()
 
         anime = FuncAnimation(fig, animate, frames=tqdm(range(len(self.steps))))
         anime.save(f"{self.dirname}/line_plot_{field_type}.mp4")
@@ -455,7 +537,7 @@ if __name__ == "__main__":
         dirname = sys.argv[1]
         analysis = Analysis(dirname)
         print("Making animes")
-        for field in ["density", "potential"]:
-            analysis.animate_slice(field)
+        for field in ["density", "potential", "current_density"]:
+            # analysis.animate_slice(field)
             analysis.animate_line(field)
         print(f"Check animes in {dirname}")
