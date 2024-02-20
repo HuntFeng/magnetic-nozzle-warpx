@@ -6,7 +6,7 @@ Edited in Sep 2023 by Hunt Feng, using WarpX 23.11.
 import argparse
 import numpy as np
 from pywarpx import callbacks, picmi, libwarpx
-from boundary_condition import CurrentFreeBoundaryCondition
+# from boundary_condition import CurrentFreeBoundaryCondition
 
 import util
 import magnetic_field
@@ -95,7 +95,9 @@ class MagneticMirror2D(object):
         # calculate the flux from the thermal plasma reservoir
         params.flux_e = params.n0 * params.v_Te
         # make the injection currect quasineutral
-        params.flux_i = params.flux_e
+        # params.flux_i = params.flux_e
+        # by setting less ion flux, less electrons will be reflected to the entrance
+        params.flux_i = params.flux_e * (params.m_e / params.m_i)**0.5
 
         # check spatial resolution
         params.debye_length = util.debye_length(params.T_e, params.n0)
@@ -119,7 +121,7 @@ class MagneticMirror2D(object):
             lower_bound=[0, -params.Lz / 2.0],
             upper_bound=[params.Lr, params.Lz / 2.0],
             lower_boundary_conditions=["none", "dirichlet"],
-            upper_boundary_conditions=["neumann", "neumann"],
+            upper_boundary_conditions=["neumann", "dirichlet"],
             lower_boundary_conditions_particles=["reflecting", "absorbing"],
             upper_boundary_conditions_particles=["absorbing", "absorbing"],
         )
@@ -189,8 +191,8 @@ class MagneticMirror2D(object):
         #######################################################################
         # Boundary condition
         #######################################################################
-        bc = CurrentFreeBoundaryCondition(self.params)
-        bc.install()
+        # bc = CurrentFreeBoundaryCondition(params)
+        # bc.install()
 
         #######################################################################
         # Particle injection                                                  #
