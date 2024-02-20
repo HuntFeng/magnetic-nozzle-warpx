@@ -6,10 +6,10 @@ echo -n "Select backend (type number):
 read choice
 # source the newly created virtualenv
 if [[ $choice == "1" ]]; then
-  source $SCRATCH/magnetic-nozzle-warpx/warpx.profile
+  source $SCRATCH/magnetic-nozzle-warpx/warpx.profile --cpu
   backend="OMP"
 elif [[ $choice == "2" ]]; then
-  source $SCRATCH/magnetic-nozzle-warpx/warpx_gpu.profile
+  source $SCRATCH/magnetic-nozzle-warpx/warpx.profile --gpu
   backend="CUDA"
 else
   echo "Please enter a valid choice"
