@@ -91,3 +91,18 @@ INFO:
 2. set phi=0T_e,-5T_e,-10T_e at the nozzle end to see how current density changed (tuning proportional control)
 3. as the potential drops, the current density becomes more positive
 4. the process of tuning PID control is TOO slow use another method instead
+
+### diags202402201028, diags202402201723
+INFO:
+1. using WarpX-23.11
+2. used checkpoint
+FIXME:
+1. oom (Out Of Memory) error happens when checkpoint is set
+
+### diags242402210841
+INFO:
+1. use 124G in job script
+2. checkpoint is used
+FIXME:
+1. too slow, took 10hours and still not finished (only reached step 86693)
+

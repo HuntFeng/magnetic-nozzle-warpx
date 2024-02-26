@@ -38,6 +38,7 @@ FieldKey = Literal[
 ]
 Direction = Literal["r", "z"]
 PlotType = Literal["slice", "line"]
+FieldType = Literal["density", "momentum", "potential", "current_density"]
 
 
 class Analysis:
@@ -281,10 +282,12 @@ class Analysis:
         plt.title(f"$t$={time:.2e}s")
         plt.show()
 
-    def average_along_central_axis(self, data: np.array):
+    def average_along_central_axis(
+        self, data: np.array, over_entire_region: bool = False
+    ):
         dr = self.params.dr
         Nz = self.params.Nz
-        num_cell = self.params.Nr // 10
+        num_cell = self.params.Nr if over_entire_region else self.params.Nr // 10
         R = num_cell * dr
         r_along_z = np.repeat(np.arange(dr / 2, R, dr), Nz).reshape(num_cell, -1)
         # \int_0^R 2\pi rdr f(r) / \pi R^2
@@ -409,27 +412,40 @@ class Analysis:
         plt.tight_layout()
         fig.show()
 
-    def animate_slice(self, field_type: Literal["density", "momentum", "potential"]):
-        fig, ax = plt.subplots(1, 1 if field_type == "potential" else 2)
+    def animate_slice(self, field_type: FieldType):
         frame = 0
         if field_type == "density":
+            fig, ax = plt.subplots(1, 2)
             n_e = self.get_data("n_electrons", frame)
             n_i = self.get_data("n_ions", frame)
-            pm_e = ax[0].pcolormesh(self.R, self.Z, n_e, cmap="Blues")
-            pm_i = ax[1].pcolormesh(self.R, self.Z, n_i, cmap="Reds")
+            pm_e = ax[0].pcolormesh(
+                self.R, self.Z, n_e, cmap="plasma", vmin=0, vmax=5e16
+            )
+            pm_i = ax[1].pcolormesh(
+                self.R, self.Z, n_i, cmap="plasma", vmin=0, vmax=8e16
+            )
             fig.colorbar(pm_e, label="$n_e$")
             fig.colorbar(pm_i, label="$n_i$")
         elif field_type == "momentum":
+            fig, ax = plt.subplots(1, 2)
             mz_e = self.get_data("mz_electrons", frame)
             mz_i = self.get_data("mz_ions", frame)
             pm_e = ax[0].pcolormesh(self.R, self.Z, mz_e, cmap="Reds")
             pm_i = ax[1].pcolormesh(self.R, self.Z, mz_i, cmap="Reds")
             fig.colorbar(pm_e, label="$m_{ze}$")
             fig.colorbar(pm_i, label="$m_{zi}$")
+        elif field_type == "current_density":
+            fig, ax = plt.subplots(1, 1)
+            Jz = self.get_data("Jz", frame)
+            pm_Jz = ax.pcolormesh(
+                self.R, self.Z, Jz, cmap="seismic", vmin=-1e3, vmax=1e3
+            )
+            fig.colorbar(pm_Jz, label="$J_z$")
         else:
+            fig, ax = plt.subplots(1, 1)
             phi = self.get_data("phi", frame)
-            pm = ax.pcolormesh(self.R, self.Z, phi)
-            fig.colorbar(pm, label="$phi_e$")
+            pm = ax.pcolormesh(self.R, self.Z, phi, vmin=-10, vmax=10)
+            fig.colorbar(pm, label="$\\phi/T_e$")
         time = self.time[frame]
         fig.suptitle(f"$t$={time:.2e}s")
         fig.tight_layout()
@@ -445,6 +461,9 @@ class Analysis:
                 mz_i = self.get_data("mz_ions", frame)
                 pm_e.set_array(mz_e)
                 pm_i.set_array(mz_i)
+            elif field_type == "current_density":
+                Jz = self.get_data("Jz", frame)
+                pm_Jz.set_array(Jz)
             else:
                 phi = self.get_data("phi", frame)
                 pm.set_array(phi)
@@ -454,9 +473,7 @@ class Analysis:
         anime = FuncAnimation(fig, animate, frames=tqdm(range(len(self.steps))))
         anime.save(f"{self.dirname}/slice_plot_{field_type}.mp4")
 
-    def animate_line(
-        self, field_type: Literal["density", "momentum", "potential", "current_density"]
-    ):
+    def animate_line(self, field_type: FieldType):
         limits = lambda a, b: (
             (b + a) / 2 - 1.1 * (b - a) / 2,
             (b + a) / 2 + 1.1 * (b - a) / 2,
@@ -479,7 +496,7 @@ class Analysis:
             (ln2,) = ax.plot(self.z, mz_i, label="$m_{zi}$")
         elif field_type == "current_density":
             Jz = self.get_data("Jz", frame)
-            mean_Jz = self.average_along_central_axis(Jz)
+            mean_Jz = self.average_along_central_axis(Jz, over_entire_region=True)
             (ln,) = ax.plot(self.z[10:], mean_Jz[10:])
             ax.set_ylabel("$J_z$ (A/m$^{2}$)")
         else:
@@ -513,7 +530,7 @@ class Analysis:
                 ln2.set_data(self.z, mz_i)
             elif field_type == "current_density":
                 Jz = self.get_data("Jz", frame)
-                mean_Jz = self.average_along_central_axis(Jz)
+                mean_Jz = self.average_along_central_axis(Jz, over_entire_region=True)
                 ln.set_data(self.z[10:], mean_Jz[10:])
                 ax.set_ylim(limits(mean_Jz[10:].min(), mean_Jz[10:].max()))
             else:
@@ -538,6 +555,6 @@ if __name__ == "__main__":
         analysis = Analysis(dirname)
         print("Making animes")
         for field in ["density", "potential", "current_density"]:
-            # analysis.animate_slice(field)
+            analysis.animate_slice(field)
             analysis.animate_line(field)
         print(f"Check animes in {dirname}")

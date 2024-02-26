@@ -3,17 +3,21 @@ after the work of Wetherton et al. 2021.
 Written in Oct 2022 by Roelof Groenewald.
 Edited in Sep 2023 by Hunt Feng, using WarpX 23.11. 
 """
+
 import argparse
 import numpy as np
-from pywarpx import callbacks, picmi, libwarpx
-# from boundary_condition import CurrentFreeBoundaryCondition
+from pywarpx import callbacks, picmi
+
+from boundary_condition import CurrentFreeBoundaryCondition
 
 import util
 import magnetic_field
 import injector
 from params import Params
 
-simulation = picmi.Simulation(verbose=1)
+# warpx_amrex_the_arena_is_managed=True to access fields data in GPU
+# https://github.com/ECP-WarpX/WarpX/issues/4715
+simulation = picmi.Simulation(verbose=1, warpx_amrex_the_arena_is_managed=True)
 
 #######################################################################
 # Begin physical parameters                                           #
@@ -91,13 +95,15 @@ class MagneticMirror2D(object):
         # for debug use
         params.total_steps = 100000
         params.diag_steps = 1000
+        # params.total_steps = 10
+        # params.diag_steps = 2
 
         # calculate the flux from the thermal plasma reservoir
         params.flux_e = params.n0 * params.v_Te
         # make the injection currect quasineutral
         # params.flux_i = params.flux_e
         # by setting less ion flux, less electrons will be reflected to the entrance
-        params.flux_i = params.flux_e * (params.m_e / params.m_i)**0.5
+        params.flux_i = params.flux_e * (params.m_e / params.m_i) ** 0.5
 
         # check spatial resolution
         params.debye_length = util.debye_length(params.T_e, params.n0)
@@ -146,7 +152,7 @@ class MagneticMirror2D(object):
         simulation.applied_fields = [
             picmi.AnalyticAppliedField(
                 Bx_expression=self.coil.get_Bx_expression(),
-                By_expression=0.0,
+                By_expression=self.coil.get_By_expression(),
                 Bz_expression=self.coil.get_Bz_expression(),
             )
         ]
@@ -191,8 +197,8 @@ class MagneticMirror2D(object):
         #######################################################################
         # Boundary condition
         #######################################################################
-        # bc = CurrentFreeBoundaryCondition(params)
-        # bc.install()
+        bc = CurrentFreeBoundaryCondition(simulation.extension, params)
+        bc.install()
 
         #######################################################################
         # Particle injection                                                  #
@@ -264,21 +270,19 @@ class MagneticMirror2D(object):
         )
         simulation.add_diagnostic(self.checkpoint)
 
-    def run_sim(self, restart_file: str = None):
-        #######################################################################
-        # Initialize run and print diagnostic info                            #
-        #######################################################################
-        simulation.initialize_inputs()
-        simulation.initialize_warpx()
-        if restart_file is None:
-            if libwarpx.amr.ParallelDescriptor.MyProc() == 0:
-                params.save(f"{args.outdir}/params.json")
-                simulation.write_input_file(
-                    file_name=f"{args.outdir}/warpx_used_inputs"
-                )
+    def run_sim(self):
+        """Initialize run and print diagnostic info"""
+        if args.restart is None:
+            # if libwarpx.amr.ParallelDescriptor.MyProc() == 0:
+            params.save(f"{args.outdir}/params.json")
+            simulation.write_input_file(file_name=f"{args.outdir}/warpx_used_inputs")
+            simulation.initialize_inputs()
+            simulation.initialize_warpx()
             simulation.step(params.total_steps)
         else:
-            simulation.amr_restart = restart_file
+            simulation.amr_restart = args.restart
+            simulation.initialize_inputs()
+            simulation.initialize_warpx()
             step_number = simulation.extension.warpx.getistep(lev=0)
             simulation.step(params.total_steps - step_number)
 
