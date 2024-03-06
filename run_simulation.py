@@ -40,7 +40,7 @@ params.dz = params.Lz / params.Nz
 # mirror ratio
 # R and Bmax determine the coil radius
 params.R = 2.0
-params.B_max = 0.30  # T
+params.B_max = 1.0  # T
 
 # use a reduced ion mass for faster simulations
 params.m_e = util.constants.m_e
@@ -68,7 +68,7 @@ class MagneticMirror2D(object):
         params.n0 = 1e16
 
         # temperature
-        params.T_e = 300
+        params.T_e = 100
         params.T_i = 1
 
         params.v_Te = util.thermal_velocity(params.T_e, params.m_e)
@@ -96,7 +96,7 @@ class MagneticMirror2D(object):
         params.total_steps = 100000
         params.diag_steps = 1000
         # params.total_steps = 10
-        # params.diag_steps = 2
+        # params.diag_steps = 5
 
         # calculate the flux from the thermal plasma reservoir
         params.flux_e = params.n0 * params.v_Te
@@ -118,7 +118,7 @@ class MagneticMirror2D(object):
         warpx_max_grid_size_y = 32 if args.cpu else 256
         warpx_blocking_factor_x = 4 if args.cpu else 128
         warpx_blocking_factor_y = 16 if args.cpu else 128
-        self.grid = picmi.CylindricalGrid(
+        grid = picmi.CylindricalGrid(
             number_of_cells=[params.Nr, params.Nz],
             warpx_max_grid_size_x=warpx_max_grid_size_x,  # max num_cells in a grid in r direction
             warpx_max_grid_size_y=warpx_max_grid_size_y,  # max num_cells in a grid in z direction
@@ -141,7 +141,7 @@ class MagneticMirror2D(object):
         #######################################################################
 
         self.solver = picmi.ElectrostaticSolver(
-            grid=self.grid,
+            grid=grid,
             method="Multigrid",
             required_precision=1e-6,
             # higher the number, more verbose it is (default 2)
@@ -188,7 +188,7 @@ class MagneticMirror2D(object):
         self.ions.m = params.m_i
 
         layout = picmi.PseudoRandomLayout(
-            n_macroparticles_per_cell=params.nppc_seed, grid=self.grid
+            n_macroparticles_per_cell=params.nppc_seed, grid=grid
         )
 
         simulation.add_species(self.electrons, layout=layout)
@@ -197,14 +197,15 @@ class MagneticMirror2D(object):
         #######################################################################
         # Boundary condition
         #######################################################################
-        bc = CurrentFreeBoundaryCondition(simulation.extension, params)
+        bc = CurrentFreeBoundaryCondition(simulation.extension, grid, params)
         bc.install()
 
         #######################################################################
         # Particle injection                                                  #
         #######################################################################
 
-        params.inject_nparts_e = 4000
+        # params.inject_nparts_e = 4000
+        params.inject_nparts_e = 400
         r_inject = params.Lr / 2
         area_inject = util.constants.pi * r_inject**2
         weight_e = params.flux_e * params.dt * area_inject / params.inject_nparts_e
@@ -241,7 +242,7 @@ class MagneticMirror2D(object):
 
         self.field_diag = picmi.FieldDiagnostic(
             name="diag",
-            grid=self.grid,
+            grid=grid,
             period=params.diag_steps,
             data_list=["phi", "rho_electrons", "rho_ions", "part_per_cell", "J", "E"],
             warpx_dump_rz_modes=True,
@@ -255,7 +256,7 @@ class MagneticMirror2D(object):
         #     name="diag",
         #     period=params.diag_steps,
         #     species=[self.ions, self.electrons],
-        #     data_list=["momentum", "weighting"],
+        #     data_list=["position", "momentum", "weighting"],
         #     write_dir=args.outdir,
         #     warpx_format="openpmd",
         #     warpx_openpmd_backend="h5",

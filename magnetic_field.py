@@ -63,7 +63,7 @@ class CoilBField(object):
 
     def get_By_expression(self):
         """Just a utility function that can be queried to get the magnetic
-        field strength in the x-direction, as input for WarpX."""
+        field strength in the y-direction, as input for WarpX."""
         return (
             f"{consts.mu_0 * self.I / 4.0}*y*("
             f"{3.0 * self.R**2}*z/({self.R**2}+z**2)**2.5"

@@ -25,21 +25,23 @@ else
   exit 0
 fi
 
+venv=warpx_test
+warpx=WarpX-test
+
 if [[ $build_venv == "y" ]]; then
   echo "remove existing warpx venv"
-  rm -rf $HOME/.venvs/warpx
-  virtualenv --system-site-packages $HOME/.venvs/warpx
-  source $HOME/.venvs/warpx/bin/activate
-  pip install matplotlib tqdm jupyter
+  rm -rf $HOME/.venvs/$venv
+  virtualenv --system-site-packages $HOME/.venvs/$venv
+  source $HOME/.venvs/$venv/bin/activate
+  pip install matplotlib tqdm jupyter h5py
 else
-  source $HOME/.venvs/warpx/bin/activate
+  source $HOME/.venvs/$venv/bin/activate
 fi
 echo "remove cache from $(which pip)"
 python -m pip cache purge
 
 # compile warpx
 # enable python binding, openpmd (hdf5) output format
-warpx=WarpX-23.11
 echo "remove build cache"
 rm -rf $HOME/$warpx/build
 echo "compile $warpx"
@@ -51,5 +53,5 @@ cmake -S $HOME/$warpx -B $HOME/$warpx/build -DWarpX_DIMS=RZ \
   -DWarpX_PYTHON=ON
 
 echo "build warpx and do pip install"
-cmake --build $HOME/$warpx/build --target pip_install -j 8
+cmake --build $HOME/$warpx/build --target pip_install -j 2
 

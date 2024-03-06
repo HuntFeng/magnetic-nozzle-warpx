@@ -16,7 +16,7 @@ def simulation_setup():
     ...
 """
 
-from pywarpx import callbacks, fields
+from pywarpx import callbacks, fields, picmi
 from params import Params
 import numpy as np
 
@@ -27,8 +27,13 @@ class CurrentFreeBoundaryCondition:
     To use this class, we need to set upper_z boundary condition to 'dirichlet'
     """
 
-    def __init__(self, sim_ext, params: Params) -> None:
-        self.sim_ext = sim_ext
+    def __init__(
+        self,
+        ext: picmi.Simulation.extension,
+        grid: picmi.CylindricalGrid,
+        params: Params,
+    ) -> None:
+        self.ext = ext
         self.params = params
         # set these to None and get them later since warpx is not initialized yet
         self.phi_wrapper = None
@@ -36,13 +41,15 @@ class CurrentFreeBoundaryCondition:
         # arrays to hold potential and current density values
         self.J_arr = []
         self.phi_arr = [-5 * params.T_e]
-        # self.target_J = params.target_J
         self.target_J = 0
+        grid.potential_zmax = self.phi_arr[-1]
+        print(f"STEP 0, phi_arr={self.phi_arr}")
 
     def upper_z(self):
-        if self.phi_wrapper is None:
-            self.phi_wrapper = fields.PhiFPWrapper()
-        self.phi_wrapper[:, -1] = self.phi_arr[-1]
+        self.ext.warpx.set_potential_on_domain_boundary(
+            potential_zhi=f"{self.phi_arr[-1]}"
+        )
+        pass
 
     def lower_z(self):
         pass
@@ -63,32 +70,35 @@ class CurrentFreeBoundaryCondition:
 
     def adjust_phi(self):
         """Adjust the potential at the nozzle exit using secant method"""
-        if not self.sim_ext.warpx.getistep(lev=0) < 800000:
+        step = self.ext.warpx.getistep(lev=0)
+        if step < self.params.total_steps * 0.61 or step % self.params.diag_steps != 0:
             return
 
-        if self.phi_wrapper is None:
-            self.phi_wrapper = fields.PhiFPWrapper()
+        # if self.phi_wrapper is None:
+        #     self.phi_wrapper = fields.PhiFPWrapper()
 
-        if self.Jz_wrapper is None:
-            self.Jz_wrapper = fields.JzWrapper()
+        # if self.Jz_wrapper is None:
+        #     self.Jz_wrapper = fields.JzWrapper()
 
-        self.J_arr.append(self.mean(self.Jz_wrapper[:, 0]))
-        if len(self.J_arr) < 2:
-            # since we use secant method, we need 2 initial guesses
-            self.phi_arr.append(-10 * self.params.T_e)
-        else:
-            # use secant method to determine the next potential value
-            J = self.J_arr[-1]
-            J_prv = self.J_arr[-2]
-            phi = self.phi_arr[-1]
-            phi_prv = self.phi_arr[-2]
-            if abs(J - J_prv) < 1e-3:
-                phi_new = phi
-            else:
-                phi_new = phi - (J - self.target_J) * (phi - phi_prv) / (J - J_prv)
-            self.phi_arr.append(phi_new)
-        self.phi_wrapper[:, -1] = self.phi_arr[-1]
+        # self.J_arr.append(self.mean(self.Jz_wrapper[:, -1]))
+        # if len(self.J_arr) < 2:
+        #     # since we use secant method, we need 2 initial guesses
+        #     phi_new = -10 * self.params.T_e
+        # else:
+        #     # use secant method to determine the next potential value
+        #     J = self.J_arr[-1]
+        #     J_prv = self.J_arr[-2]
+        #     phi = self.phi_arr[-1]
+        #     phi_prv = self.phi_arr[-2]
+        #     if abs(J - J_prv) < 1e-3:
+        #         phi_new = phi
+        #     else:
+        #         phi_new = phi - (J - self.target_J) * (phi - phi_prv) / (J - J_prv)
+        # self.phi_arr.append(phi_new)
+        self.phi_arr.append(-10 * self.params.T_e)
+        print(f"STEP {step}, phi_arr = {self.phi_arr}")
 
     def install(self):
         callbacks.installbeforeEsolve(self.apply_bc)
-        callbacks.installafterdiagnostics(self.adjust_phi)
+        # callbacks.installafterdiagnostics(self.adjust_phi) # does not work properly
+        callbacks.installafterstep(self.adjust_phi)
