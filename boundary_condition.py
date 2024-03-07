@@ -40,16 +40,15 @@ class CurrentFreeBoundaryCondition:
         self.Jz_wrapper = None
         # arrays to hold potential and current density values
         self.J_arr = []
-        self.phi_arr = [-5 * params.T_e]
+        self.phi_arr = [-6 * params.T_e]
         self.target_J = 0
         grid.potential_zmax = self.phi_arr[-1]
         print(f"STEP 0, phi_arr={self.phi_arr}")
 
     def upper_z(self):
         self.ext.warpx.set_potential_on_domain_boundary(
-            potential_zhi=f"{self.phi_arr[-1]}"
+            potential_hi_z=f"{self.phi_arr[-1]}"
         )
-        pass
 
     def lower_z(self):
         pass
@@ -58,44 +57,45 @@ class CurrentFreeBoundaryCondition:
         self.lower_z()
         self.upper_z()
 
-    def mean(self, Jz_at_exit: np.array):
-        """Calculate average J at the nozzle exit
-        Jz_at_exit: Jz values along radial direction, shape=(Nr+1,1)
-        """
+    def stats(self, Jz: np.array):
+        """Calculate the mean and std of Jz along the z axis"""
         dr = self.params.dr
         Lr = self.params.Lr
-        N = Jz_at_exit.shape[0]  # N = Nr + 1
-        r_grid = np.linspace(dr / 2, dr * N, N)
-        return (r_grid * Jz_at_exit).sum() * 2 / Lr**2
+        Nr, Nz = Jz.shape  # since Jz is on staggered grid, Nr = params.Nr + 1, so as Nz
+        rr = np.linspace(dr / 2, dr * Nr, Nr).repeat(Nz).reshape(Nr, -1)
+        J_along_z = (Jz * rr).sum(axis=0) * 2 / Lr**2  # averaged over r
+        mean = np.mean(J_along_z)
+        std = np.std(J_along_z)
+        return mean, std
 
     def adjust_phi(self):
         """Adjust the potential at the nozzle exit using secant method"""
         step = self.ext.warpx.getistep(lev=0)
-        if step < self.params.total_steps * 0.61 or step % self.params.diag_steps != 0:
+        if step < 50000 or step % 10000 != 0:
             return
 
-        # if self.phi_wrapper is None:
-        #     self.phi_wrapper = fields.PhiFPWrapper()
+        if self.phi_wrapper is None:
+            self.phi_wrapper = fields.PhiFPWrapper()
 
-        # if self.Jz_wrapper is None:
-        #     self.Jz_wrapper = fields.JzWrapper()
+        if self.Jz_wrapper is None:
+            self.Jz_wrapper = fields.JzWrapper()
 
-        # self.J_arr.append(self.mean(self.Jz_wrapper[:, -1]))
-        # if len(self.J_arr) < 2:
-        #     # since we use secant method, we need 2 initial guesses
-        #     phi_new = -10 * self.params.T_e
-        # else:
-        #     # use secant method to determine the next potential value
-        #     J = self.J_arr[-1]
-        #     J_prv = self.J_arr[-2]
-        #     phi = self.phi_arr[-1]
-        #     phi_prv = self.phi_arr[-2]
-        #     if abs(J - J_prv) < 1e-3:
-        #         phi_new = phi
-        #     else:
-        #         phi_new = phi - (J - self.target_J) * (phi - phi_prv) / (J - J_prv)
-        # self.phi_arr.append(phi_new)
-        self.phi_arr.append(-10 * self.params.T_e)
+        mean, std = self.stats(self.Jz_wrapper[...])
+        self.J_arr.append(mean)
+        if len(self.J_arr) < 2:
+            # since we use secant method, we need 2 initial guesses
+            phi_new = -10 * self.params.T_e
+        else:
+            # use secant method to determine the next potential value
+            J = self.J_arr[-1]
+            J_prv = self.J_arr[-2]
+            phi = self.phi_arr[-1]
+            phi_prv = self.phi_arr[-2]
+            if abs(J - J_prv) < 1e-3 or abs(J - self.target_J) < std / 10:
+                phi_new = phi
+            else:
+                phi_new = phi - (J - self.target_J) * (phi - phi_prv) / (J - J_prv)
+        self.phi_arr.append(phi_new)
         print(f"STEP {step}, phi_arr = {self.phi_arr}")
 
     def install(self):

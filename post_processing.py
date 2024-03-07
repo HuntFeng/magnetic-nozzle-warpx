@@ -312,7 +312,7 @@ class Analysis:
                 self.Z,
                 n_e,
                 cmap="jet",
-                norm=colors.LogNorm(vmin=1e14, vmax=2e16),
+                norm=colors.LogNorm(vmin=1e14, vmax=2e15),
             )
             fig.colorbar(pm, ax=ax[0], label="$n_e$")
             # stream plot
@@ -335,7 +335,7 @@ class Analysis:
                 self.Z,
                 n_i,
                 cmap="jet",
-                norm=colors.LogNorm(vmin=1e14, vmax=2e16),
+                norm=colors.LogNorm(vmin=1e14, vmax=2e15),
             )
             fig.colorbar(pm, ax=ax[1], label="$n_i$")
             ax[1].streamplot(
@@ -466,7 +466,7 @@ class Analysis:
                 self.Z,
                 n_e,
                 cmap="jet",
-                norm=colors.LogNorm(vmin=1e14, vmax=2e16),
+                norm=colors.LogNorm(vmin=1e14, vmax=2e15),
             )
             ax[0].set_xlabel("$r$ (m)")
             ax[0].set_ylabel("$z$ (m)")
@@ -475,7 +475,7 @@ class Analysis:
                 self.Z,
                 n_i,
                 cmap="jet",
-                norm=colors.LogNorm(vmin=1e14, vmax=2e16),
+                norm=colors.LogNorm(vmin=1e14, vmax=2e15),
             )
             ax[1].set_xlabel("$r$ (m)")
             ax[1].set_ylabel("$z$ (m)")
@@ -633,7 +633,7 @@ if __name__ == "__main__":
         dirname = sys.argv[1]
         analysis = Analysis(dirname)
         print("Making animes")
+        analysis.animate_slice("density")
         for field in ["density", "potential", "current_density"]:
-            analysis.animate_slice(field)
             analysis.animate_line(field)
         print(f"Check animes in {dirname}")
