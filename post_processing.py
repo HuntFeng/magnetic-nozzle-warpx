@@ -3,6 +3,7 @@ import sys
 import os
 import re
 import glob
+import util
 import numpy as np
 import scipy as sp
 import matplotlib.pyplot as plt
@@ -121,7 +122,6 @@ class Analysis:
         my = np.array(f[f"data/{self.steps[frame]}/particles/{species}/momentum/y"])
         mz = np.array(f[f"data/{self.steps[frame]}/particles/{species}/momentum/z"])
         mr = np.sqrt(mx**2 + my**2)
-        w = np.array(f[f"data/{self.steps[frame]}/particles/{species}/weighting"])
 
         # logical coordinates and scatter ratios
         # j=int(r/dr), j_frac=(r-rj)/dr where rj=dr*j
@@ -130,19 +130,15 @@ class Analysis:
         k_frac, k = np.modf((z + self.params.Lz / 2) / self.params.dz)
         j = j.astype(int)
         k = k.astype(int)
-        ratio1 = (1 - j_frac) * (1 - k_frac)
-        ratio2 = (j_frac) * (1 - k_frac)
-        ratio3 = (1 - j_frac) * (k_frac)
-        ratio4 = (j_frac) * (k_frac)
 
         data = np.zeros((self.params.Nr, self.params.Nz))
+        part_per_cell = np.zeros((self.params.Nr, self.params.Nz))
         m = mr if direction == "r" else mz
-        for n in range(mr.size):
-            data[j[n], k[n]] += ratio1[n] * w[n] * m[n]
-            data[j[n] + 1, k[n]] += ratio2[n] * w[n] * m[n]
-            data[j[n], k[n] + 1] += ratio3[n] * w[n] * m[n]
-            data[j[n] + 1, k[n] + 1] += ratio4[n] * w[n] * m[n]
-        return data
+        for n in tqdm(range(m.size)):
+            data[j[n], k[n]] += m[n]
+            part_per_cell[j[n], k[n]] += 1
+            
+        return data / part_per_cell
 
     def extract_time_data(self):
         """
@@ -405,23 +401,48 @@ class Analysis:
             plt.title(f"$t$={time:.2e}s")
             fig.show()
 
-    def plot_momentum(
+    def plot_velocity(
         self,
         frame: int,
         direction: Direction = "z",
         plot_type: PlotType = "slice",
     ):
         time = self.time[frame]
-        m_e = self.get_data(f"m{direction}_electrons", frame)
-        m_i = self.get_data(f"m{direction}_ions", frame)
+        params = self.params
+        v_e = self.get_data(f"m{direction}_electrons", frame) / params.m_e
+        v_i = self.get_data(f"m{direction}_ions", frame) / params.m_i
+        v_s = util.ion_sound_velocity(params.T_e, params.T_i, params.m_i)
         if plot_type == "slice":
             fig, ax = plt.subplots(1, 2, sharey=True)
-            pm = ax[0].pcolormesh(self.R, self.Z, m_e, cmap="jet")
-            fig.colorbar(pm, label="$m_{ze}$")
+            pm = ax[0].pcolormesh(self.R, self.Z, v_e / v_s, cmap="jet")
+            fig.colorbar(pm, label="$v_{ze} / v_s$")
+             # stream plot
+            coil = CoilBField(R=self.params.R_coil, B_max=self.params.B_max)
+            Br, Bz = coil.get_B_field(self.R, self.Z)
+            ax[0].streamplot(
+                self.R.T,
+                self.Z.T,
+                Br.T,
+                Bz.T,
+                color="black",
+                minlength=1,
+                linewidth=0.5,
+                arrowsize=0.5,
+            )
             ax[0].set_xlabel("$r$ (m)")
             ax[0].set_ylabel("$z$ (m)")
-            pm = ax[1].pcolormesh(self.R, self.Z, m_i, cmap="jet")
-            fig.colorbar(pm, label="$m_{zi}$")
+            pm = ax[1].pcolormesh(self.R, self.Z, v_i / v_s, cmap="jet")
+            ax[1].streamplot(
+                self.R.T,
+                self.Z.T,
+                Br.T,
+                Bz.T,
+                color="black",
+                minlength=1,
+                linewidth=0.5,
+                arrowsize=0.5,
+            )
+            fig.colorbar(pm, label="$v_{zi} / v_s$")
             ax[1].set_xlabel("$r$ (m)")
             ax[1].set_ylabel("$z$ (m)")
             fig.suptitle(f"$t$={time:.2e}s")
@@ -429,10 +450,10 @@ class Analysis:
             fig.show()
         else:
             fig = plt.figure()
-            plt.plot(self.z, m_e[0, :], label="$m_{ze}$")
-            plt.plot(self.z, m_i[0, :], label="$m_{zi}$")
+            plt.plot(self.z, m_e[0, :], label="$v_{ze} / v_s$")
+            plt.plot(self.z, m_i[0, :], label="$v_{zi} / v_s$")
             plt.xlabel("$z$ (m)")
-            plt.ylabel("$m$ (kg$\cdot$m/s)")
+            plt.ylabel("$M$")
             plt.title(f"$t$={time:.2e}s")
             plt.legend()
             fig.show()
@@ -512,12 +533,17 @@ class Analysis:
             ax.set_xlabel("$r$ (m)")
             ax.set_ylabel("$z$ (m)")
         elif field_type == "momentum":
+            fig, ax = plt.subplots(1, 2)
             mz_e = self.get_data("mz_electrons", frame)
             mz_i = self.get_data("mz_ions", frame)
             pm_e = ax[0].pcolormesh(self.R, self.Z, mz_e, cmap="Reds")
             pm_i = ax[1].pcolormesh(self.R, self.Z, mz_i, cmap="Reds")
             fig.colorbar(pm_e, label="$m_{ze}$")
             fig.colorbar(pm_i, label="$m_{zi}$")
+            ax[0].set_xlabel("$r$ (m)")
+            ax[0].set_ylabel("$z$ (m)")
+            ax[1].set_xlabel("$r$ (m)")
+            ax[1].set_ylabel("$z$ (m)")
         else:
             fig, ax = plt.subplots(1, 1)
             phi = self.get_data("phi", frame)
@@ -633,7 +659,8 @@ if __name__ == "__main__":
         dirname = sys.argv[1]
         analysis = Analysis(dirname)
         print("Making animes")
-        analysis.animate_slice("density")
-        for field in ["density", "potential", "current_density"]:
+        for field in ["density", "momentum"]:
+            analysis.animate_slice(field)
+        for field in ["density", "potential", "current_density", "momentum"]:
             analysis.animate_line(field)
         print(f"Check animes in {dirname}")

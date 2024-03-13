@@ -3,7 +3,7 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --time=6:00:00
-#SBATCH --mem=5G
+#SBATCH --mem=124G
 #SBATCH --output=slurm_%j.out
 #SBATCH --mail-type=end 
 #SBATCH --mail-user=hunt.feng@usask.ca 

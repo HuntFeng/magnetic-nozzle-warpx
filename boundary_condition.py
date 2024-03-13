@@ -40,7 +40,7 @@ class CurrentFreeBoundaryCondition:
         self.Jz_wrapper = None
         # arrays to hold potential and current density values
         self.J_arr = []
-        self.phi_arr = [-6 * params.T_e]
+        self.phi_arr = [-8 * params.T_e]
         self.target_J = 0
         grid.potential_zmax = self.phi_arr[-1]
         print(f"STEP 0, phi_arr={self.phi_arr}")
