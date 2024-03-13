@@ -3,28 +3,37 @@ after the work of Wetherton et al. 2021.
 Written in Oct 2022 by Roelof Groenewald.
 Edited in Sep 2023 by Hunt Feng, using WarpX 23.11. 
 """
+
 import argparse
 import numpy as np
-from pywarpx import callbacks, picmi, libwarpx
+from pywarpx import callbacks, picmi
+
+from boundary_condition import CurrentFreeBoundaryCondition
 
 import util
 import magnetic_field
 import injector
 from params import Params
 
-simulation = picmi.Simulation(verbose=1)
+# warpx_amrex_the_arena_is_managed=True to access fields data in GPU
+# https://github.com/ECP-WarpX/WarpX/issues/4715
+simulation = picmi.Simulation(verbose=1, warpx_amrex_the_arena_is_managed=True)
 
 #######################################################################
 # Begin physical parameters                                           #
 #######################################################################
 params = Params()
 # domain size in m
-params.Lr = 0.01  # has to be smaller than the coil radius
-params.Lz = 0.10
+# params.Lr = 0.01  # has to be smaller than the coil radius
+# params.Lz = 0.10
+params.Lr = 0.1
+params.Lz = 1.0
 
 # spatial resolution in number of cells
-params.Nr = 256
-params.Nz = 2048
+params.Nr = 128
+params.Nz = 1024
+# params.Nr = 256
+# params.Nz = 2048
 # params.Nr = 16
 # params.Nz = 32
 
@@ -35,7 +44,7 @@ params.dz = params.Lz / params.Nz
 # mirror ratio
 # R and Bmax determine the coil radius
 params.R = 2.0
-params.B_max = 0.30  # T
+params.B_max = 1.0  # T
 
 # use a reduced ion mass for faster simulations
 params.m_e = util.constants.m_e
@@ -60,10 +69,11 @@ params.crossing_times = 0.5
 class MagneticMirror2D(object):
     def __init__(self):
         # initial electron density m^{-3}
-        params.n0 = 1e16
+        # params.n0 = 1e16
+        params.n0 = 1e15
 
         # temperature
-        params.T_e = 300
+        params.T_e = 100
         params.T_i = 1
 
         params.v_Te = util.thermal_velocity(params.T_e, params.m_e)
@@ -88,13 +98,17 @@ class MagneticMirror2D(object):
         params.diag_steps = int(params.total_steps / 100)
 
         # for debug use
-        params.total_steps = 100000
+        params.total_steps = 150000
         params.diag_steps = 1000
+        # params.total_steps = 10
+        # params.diag_steps = 5
 
         # calculate the flux from the thermal plasma reservoir
         params.flux_e = params.n0 * params.v_Te
         # make the injection currect quasineutral
-        params.flux_i = params.flux_e
+        # params.flux_i = params.flux_e
+        # by setting less ion flux, less electrons will be reflected to the entrance
+        params.flux_i = params.flux_e * (params.m_e / params.m_i) ** 0.5
 
         # check spatial resolution
         params.debye_length = util.debye_length(params.T_e, params.n0)
@@ -109,7 +123,7 @@ class MagneticMirror2D(object):
         warpx_max_grid_size_y = 32 if args.cpu else 256
         warpx_blocking_factor_x = 4 if args.cpu else 128
         warpx_blocking_factor_y = 16 if args.cpu else 128
-        self.grid = picmi.CylindricalGrid(
+        grid = picmi.CylindricalGrid(
             number_of_cells=[params.Nr, params.Nz],
             warpx_max_grid_size_x=warpx_max_grid_size_x,  # max num_cells in a grid in r direction
             warpx_max_grid_size_y=warpx_max_grid_size_y,  # max num_cells in a grid in z direction
@@ -118,7 +132,7 @@ class MagneticMirror2D(object):
             lower_bound=[0, -params.Lz / 2.0],
             upper_bound=[params.Lr, params.Lz / 2.0],
             lower_boundary_conditions=["none", "dirichlet"],
-            upper_boundary_conditions=["neumann", "neumann"],
+            upper_boundary_conditions=["neumann", "dirichlet"],
             lower_boundary_conditions_particles=["reflecting", "absorbing"],
             upper_boundary_conditions_particles=["absorbing", "absorbing"],
         )
@@ -131,19 +145,19 @@ class MagneticMirror2D(object):
         # Field solver and external field                                     #
         #######################################################################
 
-        self.solver = picmi.ElectrostaticSolver(
-            grid=self.grid,
+        solver = picmi.ElectrostaticSolver(
+            grid=grid,
             method="Multigrid",
             required_precision=1e-6,
             # higher the number, more verbose it is (default 2)
             warpx_self_fields_verbosity=0,
         )
-        simulation.solver = self.solver
+        simulation.solver = solver
 
         simulation.applied_fields = [
             picmi.AnalyticAppliedField(
                 Bx_expression=self.coil.get_Bx_expression(),
-                By_expression=0.0,
+                By_expression=self.coil.get_By_expression(),
                 Bz_expression=self.coil.get_Bz_expression(),
             )
         ]
@@ -152,7 +166,7 @@ class MagneticMirror2D(object):
         # Particle types setup                                                #
         #######################################################################
 
-        self.electrons = picmi.Species(
+        electrons = picmi.Species(
             particle_type="electron",
             name="electrons",
             # warpx_save_particles_at_zlo=True,
@@ -162,9 +176,9 @@ class MagneticMirror2D(object):
             #     rms_velocity=[util.thermal_velocity(params.T_e, util.constants.m_e)] * 3,
             # ),
         )
-        self.electrons.m = params.m_e
+        electrons.m = params.m_e
 
-        self.ions = picmi.Species(
+        ions = picmi.Species(
             particle_type="H",
             name="ions",
             charge_state=1,
@@ -176,25 +190,32 @@ class MagneticMirror2D(object):
             #     rms_velocity=[util.thermal_velocity(params.T_i, params.m_i)] * 3,
             # ),
         )
-        self.ions.m = params.m_i
+        ions.m = params.m_i
 
         layout = picmi.PseudoRandomLayout(
-            n_macroparticles_per_cell=params.nppc_seed, grid=self.grid
+            n_macroparticles_per_cell=params.nppc_seed, grid=grid
         )
 
-        simulation.add_species(self.electrons, layout=layout)
-        simulation.add_species(self.ions, layout=layout)
+        simulation.add_species(electrons, layout=layout)
+        simulation.add_species(ions, layout=layout)
+
+        #######################################################################
+        # Boundary condition
+        #######################################################################
+        bc = CurrentFreeBoundaryCondition(simulation.extension, grid, params)
+        bc.install()
 
         #######################################################################
         # Particle injection                                                  #
         #######################################################################
 
-        params.inject_nparts_e = 4000
+        # params.inject_nparts_e = 4000
+        params.inject_nparts_e = 400
         r_inject = params.Lr / 2
         area_inject = util.constants.pi * r_inject**2
         weight_e = params.flux_e * params.dt * area_inject / params.inject_nparts_e
-        self.electron_injector = injector.FluxMaxwellian_ZInjector(
-            species=self.electrons,
+        electron_injector = injector.FluxMaxwellian_ZInjector(
+            species=electrons,
             T=params.T_e,
             weight=weight_e,
             nparts=params.inject_nparts_e,
@@ -206,8 +227,8 @@ class MagneticMirror2D(object):
 
         params.inject_nparts_i = params.inject_nparts_e
         weight_i = params.flux_i * params.dt * area_inject / params.inject_nparts_i
-        self.ion_injector = injector.FluxMaxwellian_ZInjector(
-            species=self.ions,
+        ion_injector = injector.FluxMaxwellian_ZInjector(
+            species=ions,
             T=params.T_i,
             weight=weight_i,
             nparts=params.inject_nparts_i,
@@ -217,16 +238,16 @@ class MagneticMirror2D(object):
             rmax=r_inject,
         )
 
-        callbacks.installparticleinjection(self.electron_injector.inject_parts)
-        callbacks.installparticleinjection(self.ion_injector.inject_parts)
+        callbacks.installparticleinjection(electron_injector.inject_parts)
+        callbacks.installparticleinjection(ion_injector.inject_parts)
 
         #######################################################################
         # Add diagnostics                                                     #
         #######################################################################
 
-        self.field_diag = picmi.FieldDiagnostic(
+        field_diag = picmi.FieldDiagnostic(
             name="diag",
-            grid=self.grid,
+            grid=grid,
             period=params.diag_steps,
             data_list=["phi", "rho_electrons", "rho_ions", "part_per_cell", "J", "E"],
             warpx_dump_rz_modes=True,
@@ -234,42 +255,40 @@ class MagneticMirror2D(object):
             warpx_format="openpmd",
             warpx_openpmd_backend="h5",
         )
-        simulation.add_diagnostic(self.field_diag)
+        simulation.add_diagnostic(field_diag)
 
-        # self.particle_diag = picmi.ParticleDiagnostic(
-        #     name="diag",
-        #     period=params.diag_steps,
-        #     species=[self.ions, self.electrons],
-        #     data_list=["momentum", "weighting"],
-        #     write_dir=args.outdir,
-        #     warpx_format="openpmd",
-        #     warpx_openpmd_backend="h5",
-        # )
-        # simulation.add_diagnostic(self.particle_diag)
+        particle_diag = picmi.ParticleDiagnostic(
+            name="diag",
+            period=params.diag_steps,
+            species=[ions, electrons],
+            data_list=["position", "momentum", "weighting"],
+            write_dir=args.outdir,
+            warpx_format="openpmd",
+            warpx_openpmd_backend="h5",
+        )
+        simulation.add_diagnostic(particle_diag)
 
-        self.checkpoint = picmi.Checkpoint(
+        checkpoint = picmi.Checkpoint(
             name="checkpoint",
             period=params.total_steps // 4,
             write_dir=args.outdir,
             warpx_file_prefix="checkpoint",
         )
-        simulation.add_diagnostic(self.checkpoint)
+        simulation.add_diagnostic(checkpoint)
 
-    def run_sim(self, restart_file: str = None):
-        #######################################################################
-        # Initialize run and print diagnostic info                            #
-        #######################################################################
-        simulation.initialize_inputs()
-        simulation.initialize_warpx()
-        if restart_file is None:
-            if libwarpx.amr.ParallelDescriptor.MyProc() == 0:
-                params.save(f"{args.outdir}/params.json")
-                simulation.write_input_file(
-                    file_name=f"{args.outdir}/warpx_used_inputs"
-                )
+    def run_sim(self):
+        """Initialize run and print diagnostic info"""
+        if args.restart is None:
+            # if libwarpx.amr.ParallelDescriptor.MyProc() == 0:
+            params.save(f"{args.outdir}/params.json")
+            simulation.write_input_file(file_name=f"{args.outdir}/warpx_used_inputs")
+            simulation.initialize_inputs()
+            simulation.initialize_warpx()
             simulation.step(params.total_steps)
         else:
-            simulation.amr_restart = restart_file
+            simulation.amr_restart = args.restart
+            simulation.initialize_inputs()
+            simulation.initialize_warpx()
             step_number = simulation.extension.warpx.getistep(lev=0)
             simulation.step(params.total_steps - step_number)
 

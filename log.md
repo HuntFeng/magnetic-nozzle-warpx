@@ -91,3 +91,44 @@ INFO:
 2. set phi=0T_e,-5T_e,-10T_e at the nozzle end to see how current density changed (tuning proportional control)
 3. as the potential drops, the current density becomes more positive
 4. the process of tuning PID control is TOO slow use another method instead
+
+### diags202402201028, diags202402201723
+INFO:
+1. using WarpX-23.11
+2. used checkpoint
+FIXME:
+1. oom (Out Of Memory) error happens when checkpoint is set
+
+### diags202402210841
+INFO:
+1. use 124G in job script (actual max used is 18.7G)
+2. checkpoint is used
+3. at the nozzle exit, phi=0
+FIXME:
+1. too slow, took 11.5 hours to simulate 100000 steps
+2. when writing the last checkpoint, GPU memory is not enough (used 35.4G)
+3. the number of particle per cell is huge, >1e4
+
+### diags202402261330 
+INFO:
+1. used `warpx_amrex_the_arena_is_managed=True` in order to access the field data in GPU runs
+FIXME:
+1. able to read the field data, but not able to set it
+
+### diags202402281239
+INFO:
+1. decrease the injection particles to 400/species/timestep
+2. `warpx_potential_hi_z=-5 * params.T_e` to test if the system can reach a stable state
+3. GPU utilization goes up to 50%
+4. GPU memory is 30GB
+5. max used memory is 3.9G
+6. only takes 9116s (2.5h) to finish the simulation
+7. current is relatively stable (-100 to -200 A/m^2)
+8. number of particle per cell is 1e3
+FIXME:
+1. ions are not following the magnetic field lines
+
+### diags202402281653
+INFO:
+1. change boundary condition at r=R to dirichlet with value phi=-5T_e
+2. ions flies radially

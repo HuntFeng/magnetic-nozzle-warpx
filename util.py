@@ -44,6 +44,20 @@ def thermal_velocity(T: float, m: float):
     return np.sqrt(2 * T_j / m)
 
 
+def ion_sound_velocity(T_e: float, T_i: float, m_i: float, Z: int = 1):
+    """
+    ion sound wave velocity
+
+    T_e: electron temperature in eV
+    T_i: ion temperature in eV
+    m_i: ion mass
+    Z: atom number (assume Hydrogen Z=1)
+    """
+    T_ij = T_i / 6.242e18  # ion temperature in joules
+    T_ej = T_e / 6.242e18  # electron temperature in joules
+    return np.sqrt((Z * T_ej + T_ij) / m_i)
+
+
 def debye_length(T: float, n: float):
     """
     Debye length in meter

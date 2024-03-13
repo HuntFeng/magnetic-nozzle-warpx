@@ -3,9 +3,11 @@ import sys
 import os
 import re
 import glob
+import util
 import numpy as np
 import scipy as sp
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 from typing import Literal
 from params import Params
 from magnetic_field import CoilBField
@@ -31,13 +33,14 @@ FieldKey = Literal[
     "Er",
     "Et",
     "Ez",
-    # "mz_electrons",
-    # "mz_ions",
-    # "mr_electrons",
-    # "mr_ions",
+    "mz_electrons",
+    "mz_ions",
+    "mr_electrons",
+    "mr_ions",
 ]
 Direction = Literal["r", "z"]
 PlotType = Literal["slice", "line"]
+FieldType = Literal["density", "potential", "current_density", "momentum"]
 
 
 class Analysis:
@@ -56,34 +59,6 @@ class Analysis:
         self.r = np.linspace(0, self.params.Lr, self.params.Nr)
         self.z = np.linspace(-self.params.Lz / 2, self.params.Lz / 2, self.params.Nz)
         self.Z, self.R = np.meshgrid(self.z, self.r)
-
-    # TODO: too slow, improve this
-    def extract_momentum(
-        self, f: h5py.File, species: Species, frame: int, direction: Literal["r", "z"]
-    ):
-        """Get momentum of species at certain frame"""
-        x = np.array(f[f"data/{self.steps[frame]}/particles/{species}/position/x"])
-        y = np.array(f[f"data/{self.steps[frame]}/particles/{species}/position/y"])
-        z = np.array(f[f"data/{self.steps[frame]}/particles/{species}/position/z"])
-        r = np.sqrt(x**2 + y**2)
-        mx = np.array(f[f"data/{self.steps[frame]}/particles/{species}/momentum/x"])
-        my = np.array(f[f"data/{self.steps[frame]}/particles/{species}/momentum/y"])
-        mz = np.array(f[f"data/{self.steps[frame]}/particles/{species}/momentum/z"])
-        mr = np.sqrt(mx**2 + my**2)
-        w = np.array(f[f"data/{self.steps[frame]}/particles/{species}/weighting"])
-
-        # logical coordinate
-        i = (r / self.params.dr).astype(int)
-        # need to shift z to positive other k is negative
-        k = ((z + self.params.Lz / 2) / self.params.dz).astype(int)
-
-        data = np.zeros((self.params.Nr, self.params.Nz))
-        for n in range(mr.size):
-            if direction == "r":
-                data[i[n], k[n]] += w[n] * mr[n] / mr.size
-            else:
-                data[i[n], k[n]] += w[n] * mz[n] / mz.size
-        return data
 
     def get_data(self, key: FieldKey, frame: int):
         """Get data with field key at certain frame"""
@@ -134,6 +109,36 @@ class Analysis:
                 direction = key[1]
                 species = key.split("_")[1]
                 return self.extract_momentum(file, species, frame, direction)
+
+    def extract_momentum(
+        self, f: h5py.File, species: Species, frame: int, direction: Literal["r", "z"]
+    ):
+        """Get momentum of species at certain frame"""
+        x = np.array(f[f"data/{self.steps[frame]}/particles/{species}/position/x"])
+        y = np.array(f[f"data/{self.steps[frame]}/particles/{species}/position/y"])
+        z = np.array(f[f"data/{self.steps[frame]}/particles/{species}/position/z"])
+        r = np.sqrt(x**2 + y**2)
+        mx = np.array(f[f"data/{self.steps[frame]}/particles/{species}/momentum/x"])
+        my = np.array(f[f"data/{self.steps[frame]}/particles/{species}/momentum/y"])
+        mz = np.array(f[f"data/{self.steps[frame]}/particles/{species}/momentum/z"])
+        mr = np.sqrt(mx**2 + my**2)
+
+        # logical coordinates and scatter ratios
+        # j=int(r/dr), j_frac=(r-rj)/dr where rj=dr*j
+        j_frac, j = np.modf(r / self.params.dr)
+        # need to shift the z to positive since k (an index) is positive
+        k_frac, k = np.modf((z + self.params.Lz / 2) / self.params.dz)
+        j = j.astype(int)
+        k = k.astype(int)
+
+        data = np.zeros((self.params.Nr, self.params.Nz))
+        part_per_cell = np.zeros((self.params.Nr, self.params.Nz))
+        m = mr if direction == "r" else mz
+        for n in tqdm(range(m.size)):
+            data[j[n], k[n]] += m[n]
+            part_per_cell[j[n], k[n]] += 1
+            
+        return data / part_per_cell
 
     def extract_time_data(self):
         """
@@ -281,10 +286,12 @@ class Analysis:
         plt.title(f"$t$={time:.2e}s")
         plt.show()
 
-    def average_along_central_axis(self, data: np.array):
+    def average_along_central_axis(
+        self, data: np.array, over_entire_region: bool = False
+    ):
         dr = self.params.dr
         Nz = self.params.Nz
-        num_cell = self.params.Nr // 10
+        num_cell = self.params.Nr if over_entire_region else self.params.Nr // 10
         R = num_cell * dr
         r_along_z = np.repeat(np.arange(dr / 2, R, dr), Nz).reshape(num_cell, -1)
         # \int_0^R 2\pi rdr f(r) / \pi R^2
@@ -296,12 +303,47 @@ class Analysis:
         n_i = self.get_data("n_ions", frame)
         if plot_type == "slice":
             fig, ax = plt.subplots(1, 2, sharey=True)
-            pm = ax[0].pcolormesh(self.R, self.Z, n_e, cmap="Blues")
+            pm = ax[0].pcolormesh(
+                self.R,
+                self.Z,
+                n_e,
+                cmap="jet",
+                norm=colors.LogNorm(vmin=1e14, vmax=2e15),
+            )
             fig.colorbar(pm, ax=ax[0], label="$n_e$")
+            # stream plot
+            coil = CoilBField(R=self.params.R_coil, B_max=self.params.B_max)
+            Br, Bz = coil.get_B_field(self.R, self.Z)
+            ax[0].streamplot(
+                self.R.T,
+                self.Z.T,
+                Br.T,
+                Bz.T,
+                color="black",
+                minlength=1,
+                linewidth=0.5,
+                arrowsize=0.5,
+            )
             ax[0].set_xlabel("$r$ (m)")
             ax[0].set_ylabel("$z$ (m)")
-            pm = ax[1].pcolormesh(self.R, self.Z, n_i, cmap="Reds")
+            pm = ax[1].pcolormesh(
+                self.R,
+                self.Z,
+                n_i,
+                cmap="jet",
+                norm=colors.LogNorm(vmin=1e14, vmax=2e15),
+            )
             fig.colorbar(pm, ax=ax[1], label="$n_i$")
+            ax[1].streamplot(
+                self.R.T,
+                self.Z.T,
+                Br.T,
+                Bz.T,
+                color="black",
+                minlength=1,
+                linewidth=0.5,
+                arrowsize=0.5,
+            )
             ax[1].set_xlabel("$r$ (m)")
             ax[1].set_ylabel("$z$ (m)")
             fig.suptitle(f"$t$={time:.2e}s")
@@ -359,23 +401,48 @@ class Analysis:
             plt.title(f"$t$={time:.2e}s")
             fig.show()
 
-    def plot_momentum(
+    def plot_velocity(
         self,
         frame: int,
         direction: Direction = "z",
         plot_type: PlotType = "slice",
     ):
         time = self.time[frame]
-        m_e = self.get_data(f"m{direction}_electrons", frame)
-        m_i = self.get_data(f"m{direction}_ions", frame)
+        params = self.params
+        v_e = self.get_data(f"m{direction}_electrons", frame) / params.m_e
+        v_i = self.get_data(f"m{direction}_ions", frame) / params.m_i
+        v_s = util.ion_sound_velocity(params.T_e, params.T_i, params.m_i)
         if plot_type == "slice":
             fig, ax = plt.subplots(1, 2, sharey=True)
-            pm = ax[0].pcolormesh(self.R, self.Z, m_e, cmap="Reds")
-            fig.colorbar(pm, label="$m_{ze}$")
+            pm = ax[0].pcolormesh(self.R, self.Z, v_e / v_s, cmap="jet")
+            fig.colorbar(pm, label="$v_{ze} / v_s$")
+             # stream plot
+            coil = CoilBField(R=self.params.R_coil, B_max=self.params.B_max)
+            Br, Bz = coil.get_B_field(self.R, self.Z)
+            ax[0].streamplot(
+                self.R.T,
+                self.Z.T,
+                Br.T,
+                Bz.T,
+                color="black",
+                minlength=1,
+                linewidth=0.5,
+                arrowsize=0.5,
+            )
             ax[0].set_xlabel("$r$ (m)")
             ax[0].set_ylabel("$z$ (m)")
-            pm = ax[1].pcolormesh(self.R, self.Z, m_i, cmap="Reds")
-            fig.colorbar(pm, label="$m_{zi}$")
+            pm = ax[1].pcolormesh(self.R, self.Z, v_i / v_s, cmap="jet")
+            ax[1].streamplot(
+                self.R.T,
+                self.Z.T,
+                Br.T,
+                Bz.T,
+                color="black",
+                minlength=1,
+                linewidth=0.5,
+                arrowsize=0.5,
+            )
+            fig.colorbar(pm, label="$v_{zi} / v_s$")
             ax[1].set_xlabel("$r$ (m)")
             ax[1].set_ylabel("$z$ (m)")
             fig.suptitle(f"$t$={time:.2e}s")
@@ -383,10 +450,10 @@ class Analysis:
             fig.show()
         else:
             fig = plt.figure()
-            plt.plot(self.z, m_e[0, :], label="$m_{ze}$")
-            plt.plot(self.z, m_i[0, :], label="$m_{zi}$")
+            plt.plot(self.z, m_e[0, :], label="$v_{ze} / v_s$")
+            plt.plot(self.z, m_i[0, :], label="$v_{zi} / v_s$")
             plt.xlabel("$z$ (m)")
-            plt.ylabel("$m$ (kg$\cdot$m/s)")
+            plt.ylabel("$M$")
             plt.title(f"$t$={time:.2e}s")
             plt.legend()
             fig.show()
@@ -409,27 +476,81 @@ class Analysis:
         plt.tight_layout()
         fig.show()
 
-    def animate_slice(self, field_type: Literal["density", "momentum", "potential"]):
-        fig, ax = plt.subplots(1, 1 if field_type == "potential" else 2)
+    def animate_slice(self, field_type: FieldType):
         frame = 0
         if field_type == "density":
+            fig, ax = plt.subplots(1, 2)
             n_e = self.get_data("n_electrons", frame)
             n_i = self.get_data("n_ions", frame)
-            pm_e = ax[0].pcolormesh(self.R, self.Z, n_e, cmap="Blues")
-            pm_i = ax[1].pcolormesh(self.R, self.Z, n_i, cmap="Reds")
+            pm_e = ax[0].pcolormesh(
+                self.R,
+                self.Z,
+                n_e,
+                cmap="jet",
+                norm=colors.LogNorm(vmin=1e14, vmax=2e15),
+            )
+            ax[0].set_xlabel("$r$ (m)")
+            ax[0].set_ylabel("$z$ (m)")
+            pm_i = ax[1].pcolormesh(
+                self.R,
+                self.Z,
+                n_i,
+                cmap="jet",
+                norm=colors.LogNorm(vmin=1e14, vmax=2e15),
+            )
+            ax[1].set_xlabel("$r$ (m)")
+            ax[1].set_ylabel("$z$ (m)")
             fig.colorbar(pm_e, label="$n_e$")
             fig.colorbar(pm_i, label="$n_i$")
+            # stream plot
+            coil = CoilBField(R=self.params.R_coil, B_max=self.params.B_max)
+            Br, Bz = coil.get_B_field(self.R, self.Z)
+            ax[0].streamplot(
+                self.R.T,
+                self.Z.T,
+                Br.T,
+                Bz.T,
+                color="black",
+                minlength=1,
+                linewidth=0.5,
+                arrowsize=0.5,
+            )
+            ax[1].streamplot(
+                self.R.T,
+                self.Z.T,
+                Br.T,
+                Bz.T,
+                color="black",
+                minlength=1,
+                linewidth=0.5,
+                arrowsize=0.5,
+            )
+        elif field_type == "current_density":
+            fig, ax = plt.subplots(1, 1)
+            Jz = self.get_data("Jz", frame)
+            pm_Jz = ax.pcolormesh(self.R, self.Z, Jz, cmap="jet", vmin=-1e3, vmax=1e3)
+            fig.colorbar(pm_Jz, label="$J_z$")
+            ax.set_xlabel("$r$ (m)")
+            ax.set_ylabel("$z$ (m)")
         elif field_type == "momentum":
+            fig, ax = plt.subplots(1, 2)
             mz_e = self.get_data("mz_electrons", frame)
             mz_i = self.get_data("mz_ions", frame)
             pm_e = ax[0].pcolormesh(self.R, self.Z, mz_e, cmap="Reds")
             pm_i = ax[1].pcolormesh(self.R, self.Z, mz_i, cmap="Reds")
             fig.colorbar(pm_e, label="$m_{ze}$")
             fig.colorbar(pm_i, label="$m_{zi}$")
+            ax[0].set_xlabel("$r$ (m)")
+            ax[0].set_ylabel("$z$ (m)")
+            ax[1].set_xlabel("$r$ (m)")
+            ax[1].set_ylabel("$z$ (m)")
         else:
+            fig, ax = plt.subplots(1, 1)
             phi = self.get_data("phi", frame)
-            pm = ax.pcolormesh(self.R, self.Z, phi)
-            fig.colorbar(pm, label="$phi_e$")
+            pm = ax.pcolormesh(self.R, self.Z, phi, vmin=-10, vmax=10)
+            fig.colorbar(pm, label="$\\phi/T_e$")
+            ax.set_xlabel("$r$ (m)")
+            ax.set_ylabel("$z$ (m)")
         time = self.time[frame]
         fig.suptitle(f"$t$={time:.2e}s")
         fig.tight_layout()
@@ -440,6 +561,9 @@ class Analysis:
                 n_i = self.get_data("n_ions", frame)
                 pm_e.set_array(n_e)
                 pm_i.set_array(n_i)
+            elif field_type == "current_density":
+                Jz = self.get_data("Jz", frame)
+                pm_Jz.set_array(Jz)
             elif field_type == "momentum":
                 mz_e = self.get_data("mz_electrons", frame)
                 mz_i = self.get_data("mz_ions", frame)
@@ -454,9 +578,7 @@ class Analysis:
         anime = FuncAnimation(fig, animate, frames=tqdm(range(len(self.steps))))
         anime.save(f"{self.dirname}/slice_plot_{field_type}.mp4")
 
-    def animate_line(
-        self, field_type: Literal["density", "momentum", "potential", "current_density"]
-    ):
+    def animate_line(self, field_type: FieldType):
         limits = lambda a, b: (
             (b + a) / 2 - 1.1 * (b - a) / 2,
             (b + a) / 2 + 1.1 * (b - a) / 2,
@@ -472,16 +594,17 @@ class Analysis:
             (ln1,) = ax.semilogy(self.z, mean_n_e, ".", color="blue", label="$n_e$")
             (ln2,) = ax.semilogy(self.z, mean_n_i, ".", color="red", label="$n_i$")
             ax.set_ylabel("$n$ (m$^{-3}$)")
+            ax.legend()
+        elif field_type == "current_density":
+            Jz = self.get_data("Jz", frame)
+            mean_Jz = self.average_along_central_axis(Jz, over_entire_region=True)
+            (ln,) = ax.plot(self.z[10:], mean_Jz[10:])
+            ax.set_ylabel("$J_z$ (A/m$^{2}$)")
         elif field_type == "momentum":
             mz_e = self.get_data("mz_electrons", frame)[0, :]
             mz_i = self.get_data("mz_ions", frame)[0, :]
             (ln1,) = ax.plot(self.z, mz_e, label="$m_{ze}$")
             (ln2,) = ax.plot(self.z, mz_i, label="$m_{zi}$")
-        elif field_type == "current_density":
-            Jz = self.get_data("Jz", frame)
-            mean_Jz = self.average_along_central_axis(Jz)
-            (ln,) = ax.plot(self.z[10:], mean_Jz[10:])
-            ax.set_ylabel("$J_z$ (A/m$^{2}$)")
         else:
             phi = self.get_data("phi", frame)
             mean_phi = self.average_along_central_axis(phi)
@@ -490,7 +613,6 @@ class Analysis:
             ax.set_ylabel("$\\phi/T_e$")
         time = self.time[frame]
         fig.suptitle(f"$t$={time:.2e}s")
-        ax.legend()
 
         def animate(frame: int):
             if field_type == "density":
@@ -506,16 +628,16 @@ class Analysis:
                         max(mean_n_e.max(), mean_n_i.max()),
                     )
                 )
+            elif field_type == "current_density":
+                Jz = self.get_data("Jz", frame)
+                mean_Jz = self.average_along_central_axis(Jz, over_entire_region=True)
+                ln.set_data(self.z[10:], mean_Jz[10:])
+                ax.set_ylim(limits(mean_Jz[10:].min(), mean_Jz[10:].max()))
             elif field_type == "momentum":
                 mz_e = self.get_data("mz_electrons", frame)[0, :]
                 mz_i = self.get_data("mz_ions", frame)[0, :]
                 ln1.set_data(self.z, mz_e)
                 ln2.set_data(self.z, mz_i)
-            elif field_type == "current_density":
-                Jz = self.get_data("Jz", frame)
-                mean_Jz = self.average_along_central_axis(Jz)
-                ln.set_data(self.z[10:], mean_Jz[10:])
-                ax.set_ylim(limits(mean_Jz[10:].min(), mean_Jz[10:].max()))
             else:
                 phi = self.get_data("phi", frame)
                 mean_phi = self.average_along_central_axis(phi)
@@ -537,7 +659,8 @@ if __name__ == "__main__":
         dirname = sys.argv[1]
         analysis = Analysis(dirname)
         print("Making animes")
-        for field in ["density", "potential", "current_density"]:
-            # analysis.animate_slice(field)
+        for field in ["density", "momentum"]:
+            analysis.animate_slice(field)
+        for field in ["density", "potential", "current_density", "momentum"]:
             analysis.animate_line(field)
         print(f"Check animes in {dirname}")
