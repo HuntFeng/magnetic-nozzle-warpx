@@ -137,7 +137,7 @@ class Analysis:
         for n in tqdm(range(m.size)):
             data[j[n], k[n]] += m[n]
             part_per_cell[j[n], k[n]] += 1
-            
+
         return data / part_per_cell
 
     def extract_time_data(self):
@@ -310,7 +310,7 @@ class Analysis:
                 cmap="jet",
                 norm=colors.LogNorm(vmin=1e14, vmax=2e15),
             )
-            fig.colorbar(pm, ax=ax[0], label="$n_e$")
+            fig.colorbar(pm, ax=ax[0], label="$n_e$ (m$^{-3}$)")
             # stream plot
             coil = CoilBField(R=self.params.R_coil, B_max=self.params.B_max)
             Br, Bz = coil.get_B_field(self.R, self.Z)
@@ -326,6 +326,7 @@ class Analysis:
             )
             ax[0].set_xlabel("$r$ (m)")
             ax[0].set_ylabel("$z$ (m)")
+            ax[0].set_title("$n_e$")
             pm = ax[1].pcolormesh(
                 self.R,
                 self.Z,
@@ -333,7 +334,7 @@ class Analysis:
                 cmap="jet",
                 norm=colors.LogNorm(vmin=1e14, vmax=2e15),
             )
-            fig.colorbar(pm, ax=ax[1], label="$n_i$")
+            fig.colorbar(pm, ax=ax[1], label="$n_i$ (m$^{-3}$)")
             ax[1].streamplot(
                 self.R.T,
                 self.Z.T,
@@ -346,16 +347,17 @@ class Analysis:
             )
             ax[1].set_xlabel("$r$ (m)")
             ax[1].set_ylabel("$z$ (m)")
+            ax[1].set_title("$n_i$")
             fig.suptitle(f"$t$={time:.2e}s")
             fig.tight_layout()
         else:
             fig = plt.figure()
             mean_n_e = self.average_along_central_axis(n_e)
             mean_n_i = self.average_along_central_axis(n_i)
-            plt.semilogy(self.z, mean_n_e, color="blue", label="$n_e$")
-            plt.semilogy(self.z, mean_n_i, color="red", label="$n_i$")
+            plt.plot(self.z, mean_n_e / self.params.n0, color="blue", label="electrons")
+            plt.plot(self.z, mean_n_i / self.params.n0, color="red", label="ions")
             plt.xlabel("$z$ (m)")
-            plt.ylabel("$n$ (m$^{-3}$)")
+            plt.ylabel("$n / n_0$")
             plt.title(f"$t$={time:.2e}s")
             plt.legend()
             fig.show()
@@ -416,7 +418,7 @@ class Analysis:
             fig, ax = plt.subplots(1, 2, sharey=True)
             pm = ax[0].pcolormesh(self.R, self.Z, v_e / v_s, cmap="jet")
             fig.colorbar(pm, label="$v_{ze} / v_s$")
-             # stream plot
+            # stream plot
             coil = CoilBField(R=self.params.R_coil, B_max=self.params.B_max)
             Br, Bz = coil.get_B_field(self.R, self.Z)
             ax[0].streamplot(
@@ -450,8 +452,10 @@ class Analysis:
             fig.show()
         else:
             fig = plt.figure()
-            plt.plot(self.z, m_e[0, :], label="$v_{ze} / v_s$")
-            plt.plot(self.z, m_i[0, :], label="$v_{zi} / v_s$")
+            v_e_norm = self.average_along_central_axis(v_e / v_s)
+            v_i_norm = self.average_along_central_axis(v_i / v_s)
+            plt.plot(self.z, v_e_norm, label="$v_{ze} / v_s$")
+            plt.plot(self.z, v_i_norm, label="$v_{zi} / v_s$")
             plt.xlabel("$z$ (m)")
             plt.ylabel("$M$")
             plt.title(f"$t$={time:.2e}s")
@@ -587,13 +591,13 @@ class Analysis:
         ax.set_xlabel("$z$ (m)")
         frame = 0
         if field_type == "density":
-            n_e = self.get_data("n_electrons", frame)
-            n_i = self.get_data("n_ions", frame)
+            n_e = self.get_data("n_electrons", frame) / self.params.n0
+            n_i = self.get_data("n_ions", frame) / self.params.n0
             mean_n_e = self.average_along_central_axis(n_e)
             mean_n_i = self.average_along_central_axis(n_i)
-            (ln1,) = ax.semilogy(self.z, mean_n_e, ".", color="blue", label="$n_e$")
-            (ln2,) = ax.semilogy(self.z, mean_n_i, ".", color="red", label="$n_i$")
-            ax.set_ylabel("$n$ (m$^{-3}$)")
+            (ln1,) = ax.plot(self.z, mean_n_e, color="blue", label="electrons")
+            (ln2,) = ax.plot(self.z, mean_n_i, color="red", label="ions")
+            ax.set_ylabel("$n / n_0$")
             ax.legend()
         elif field_type == "current_density":
             Jz = self.get_data("Jz", frame)
@@ -616,8 +620,8 @@ class Analysis:
 
         def animate(frame: int):
             if field_type == "density":
-                n_e = self.get_data("n_electrons", frame)
-                n_i = self.get_data("n_ions", frame)
+                n_e = self.get_data("n_electrons", frame) / self.params.n0
+                n_i = self.get_data("n_ions", frame) / self.params.n0
                 mean_n_e = self.average_along_central_axis(n_e)
                 mean_n_i = self.average_along_central_axis(n_i)
                 ln1.set_data(self.z, mean_n_e)
@@ -659,8 +663,9 @@ if __name__ == "__main__":
         dirname = sys.argv[1]
         analysis = Analysis(dirname)
         print("Making animes")
-        for field in ["density", "momentum"]:
-            analysis.animate_slice(field)
-        for field in ["density", "potential", "current_density", "momentum"]:
-            analysis.animate_line(field)
+        analysis.animate_line("density")
+        # for field in ["density"]:
+        #     analysis.animate_slice(field)
+        # for field in ["density", "potential", "current_density"]:
+        #     analysis.animate_line(field)
         print(f"Check animes in {dirname}")

@@ -43,7 +43,8 @@ params.dz = params.Lz / params.Nz
 
 # mirror ratio
 # R and Bmax determine the coil radius
-params.R = 2.0
+# params.R = 2.0
+params.R = 10.0
 params.B_max = 1.0  # T
 
 # use a reduced ion mass for faster simulations

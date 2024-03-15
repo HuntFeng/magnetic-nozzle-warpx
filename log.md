@@ -128,7 +128,14 @@ INFO:
 FIXME:
 1. ions are not following the magnetic field lines
 
-### diags202402281653
-INFO:
-1. change boundary condition at r=R to dirichlet with value phi=-5T_e
-2. ions flies radially
+### diags202403071151
+1. Uses current control to make current zero.
+2. It is a transonic solution.
+FIXME:
+1. There is a drop in the potential and density at the location of injection. We want it to be flat. See https://github.com/HuntFeng/magnetic-nozzle-warpx/issues/7
+
+### diags202403131140
+1. increased mirror ratio R from 2 to 10
+2. potential is flat in the region from z=-0.5 to z=0
+3. density is almost flat in the region from z=-0.5 to z=0 (I believe it will be flatter if simulation goes longer )
+4. The ion velocity profile is transonic, it crosses the sonic point near the nozzle throat
