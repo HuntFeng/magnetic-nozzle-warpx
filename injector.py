@@ -13,7 +13,7 @@ class FluxMaxwellian_ZInjector(object):
         species (picmi.Species object): The species that will be injected.
         T (float): The temperature of the species.
         weight (float): The statistical weight for each injected particle.
-        nparts (int): Number of particles to inject per timestep (number of injection particles per processor is determined at runtime) 
+        nparts (int): Number of particles to inject per timestep (number of injection particles per processor is determined at runtime)
         zmin, zmax (float): Minimum and maximum z-coordinates of the flux plane.
         rmin, rmax (float): Minimum and maximum r-coordinates of the flux plane.
     """
@@ -34,7 +34,7 @@ class FluxMaxwellian_ZInjector(object):
         self.weight = weight
         self.nparts = nparts
 
-        self.sigma = util.thermal_velocity(self.T, self.species.m)
+        self.sigma = util.thermal_velocity(self.T, self.species.mass)
 
         self.zmin = zmin
         self.zmax = zmax
@@ -61,11 +61,11 @@ class FluxMaxwellian_ZInjector(object):
         # vz_vals = np.abs(np.random.normal(0, self.sigma, nparts_per_proc)) is not okay
         # since most of the particles will then have 0 vz
         # use the random number generator for normal dist. but drop the cos(2*pi*rand) factor
-        vz_vals = self.sigma * \
-            np.sqrt(-2.0 * np.log(1.0 - np.random.rand(nparts_per_proc)))
+        vz_vals = self.sigma * np.sqrt(
+            -2.0 * np.log(1.0 - np.random.rand(nparts_per_proc))
+        )
 
-        part_wrapper = particle_containers.ParticleContainerWrapper(
-            self.species.name)
+        part_wrapper = particle_containers.ParticleContainerWrapper(self.species.name)
         part_wrapper.add_particles(
             x=x_pos, y=y_pos, z=z_pos, ux=vx_vals, uy=vy_vals, uz=vz_vals, w=self.weight
         )

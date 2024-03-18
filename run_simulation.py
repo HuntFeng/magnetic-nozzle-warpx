@@ -181,6 +181,9 @@ class MagneticMirror2D(object):
         electrons = picmi.Species(
             particle_type="electron",
             name="electrons",
+            charge_state=-1,
+            # need to pass in a number for mass for injector to use
+            mass=params.m_e,
         )
 
         ions = picmi.Species(
