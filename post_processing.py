@@ -382,7 +382,7 @@ class Analysis:
             fig.show()
 
     def plot_current_density(
-        self, frame: int, direction: Direction = "z", plot_type: PlotType = "slice"
+        self, frame: int, direction: Direction, plot_type: PlotType = "slice"
     ):
         time = self.time[frame]
         J = self.get_data("J" + direction, frame)
@@ -400,6 +400,28 @@ class Analysis:
             plt.plot(self.z[10:], mean_J[10:])
             plt.xlabel("$z$ (m)")
             plt.ylabel(f"$J_{direction}$" + " (A/m$^{2}$)")
+            plt.title(f"$t$={time:.2e}s")
+            fig.show()
+
+    def plot_electric_field(
+        self, frame: int, direction: Direction, plot_type: PlotType = "slice"
+    ):
+        time = self.time[frame]
+        E = self.get_data("E" + direction, frame)
+        if plot_type == "slice":
+            plt.figure()
+            plt.pcolormesh(self.R, self.Z, E, cmap="coolwarm")
+            plt.colorbar(label=f"$E_{direction}$")
+            plt.xlabel("$r$ (m)")
+            plt.ylabel("$z$ (m)")
+            plt.title(f"$t$={time:.2e}s")
+            plt.show()
+        else:
+            fig = plt.figure()
+            mean_E = self.average_along_central_axis(E)
+            plt.plot(self.z, mean_E)
+            plt.xlabel("$z$ (m)")
+            plt.ylabel(f"$E_{direction}$" + " ($V/m$)")
             plt.title(f"$t$={time:.2e}s")
             fig.show()
 

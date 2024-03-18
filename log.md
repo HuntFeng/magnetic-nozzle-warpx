@@ -139,3 +139,9 @@ FIXME:
 2. potential is flat in the region from z=-0.5 to z=0
 3. density is almost flat in the region from z=-0.5 to z=0 (I believe it will be flatter if simulation goes longer )
 4. The ion velocity profile is transonic, it crosses the sonic point near the nozzle throat
+5. total_time = 1.04*ion_crossing_time
+
+### diags202403152211
+1. total_time = 1.39*ion_crossing_time
+2. density profile is flatter but does not improve alot
+

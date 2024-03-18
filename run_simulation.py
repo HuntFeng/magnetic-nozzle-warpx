@@ -41,12 +41,6 @@ params.Nz = 1024
 params.dr = params.Lr / params.Nr
 params.dz = params.Lz / params.Nz
 
-# mirror ratio
-# R and Bmax determine the coil radius
-# params.R = 2.0
-params.R = 10.0
-params.B_max = 1.0  # T
-
 # use a reduced ion mass for faster simulations
 params.m_e = util.constants.m_e
 params.m_i = 400.0 * util.constants.m_e
@@ -59,7 +53,7 @@ params.V_divertor = -2.5
 params.nppc_seed = 5  # 800
 
 # total simulation time in ion thermal crossing times
-params.crossing_times = 0.5
+params.total_time = 1.5
 
 
 #######################################################################
@@ -79,28 +73,22 @@ class MagneticMirror2D(object):
 
         params.v_Te = util.thermal_velocity(params.T_e, params.m_e)
         params.v_Ti = util.thermal_velocity(params.T_i, params.m_i)
-
-        # the given mirror ratio can only be achieved with the given Lz and
-        # B_max for a unique coil radius
-        params.R_coil = 0.5 * params.Lz / np.sqrt(params.R ** (2.0 / 3.0) - 1.0)
-        self.coil = magnetic_field.CoilBField(R=params.R_coil, B_max=params.B_max)
-        # self.coil.plot_field(params.Lr/2.0/params.R_coil, params.Lz/2.0/params.R_coil)
+        params.v_s = util.ion_sound_velocity(params.T_e, params.T_i, params.m_i)
 
         # simulation timestep
         # params.dt = 0.07 / util.plasma_freq(params.n0)
         params.dt = params.dz / (5.0 * params.v_Te)
-        # params.dt = 0.5 / util.cyclotron_freq(params.m_e, params.B_max)
 
         # calculate the ion crossing time to get the total simulation time
-        params.ion_crossing_time = params.Lz / params.v_Ti
+        params.ion_crossing_time = params.Lz / params.v_s
         params.total_steps = int(
-            np.ceil(params.crossing_times * params.ion_crossing_time / params.dt)
+            np.ceil(params.total_time * params.ion_crossing_time / params.dt)
         )
         params.diag_steps = int(params.total_steps / 100)
 
         # for debug use
-        params.total_steps = 150000
-        params.diag_steps = 1000
+        # params.total_steps = 200000
+        # params.diag_steps = 1000
         # params.total_steps = 10
         # params.diag_steps = 5
 
@@ -155,12 +143,42 @@ class MagneticMirror2D(object):
         )
         simulation.solver = solver
 
+        # the given mirror ratio can only be achieved with the given Lz and
+        # B_max for a unique coil radius
+        # params.B_max = 1 # T
+        # params.R = 10
+        # params.R_coil = 0.5 * params.Lz / np.sqrt(params.R ** (2.0 / 3.0) - 1.0)
+        # coil = magnetic_field.CoilBField(R=params.R_coil, B_max=params.B_max)
+        # simulation.applied_fields = [
+        #     picmi.AnalyticAppliedField(
+        #         Bx_expression=coil.get_Bx_expression(),
+        #         By_expression=coil.get_By_expression(),
+        #         Bz_expression=coil.get_Bz_expression(),
+        #     )
+        # ]
+        params.B_max = 1  # T
+        params.R = 10
+        params.K = 50
+        params.kappa = 1.0
+        params.rappa = 5.0
+        b_field = magnetic_field.NozzleBField(
+            params.B_max, params.R, params.K, params.kappa, params.rappa
+        )
         simulation.applied_fields = [
             picmi.AnalyticAppliedField(
-                Bx_expression=self.coil.get_Bx_expression(),
-                By_expression=self.coil.get_By_expression(),
-                Bz_expression=self.coil.get_Bz_expression(),
-            )
+                Bx_expression=b_field.get_Bx_expression(region="mirror"),
+                By_expression=b_field.get_By_expression(region="mirror"),
+                Bz_expression=b_field.get_Bz_expression(region="mirror"),
+                lower_bound=[-0.1, -0.1, -0.5],
+                upper_bound=[0.1, 0.1, 0],
+            ),
+            picmi.AnalyticAppliedField(
+                Bx_expression=b_field.get_Bx_expression(region="expander"),
+                By_expression=b_field.get_By_expression(region="expander"),
+                Bz_expression=b_field.get_Bz_expression(region="expander"),
+                lower_bound=[-0.1, -0.1, 0],
+                upper_bound=[0.1, 0.1, 0.5],
+            ),
         ]
 
         #######################################################################
