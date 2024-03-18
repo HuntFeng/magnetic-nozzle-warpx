@@ -99,15 +99,15 @@ class NozzleBField:
         B_max: float,
         R: float,
         K: float,
-        kappa: float,
         rappa: float,
+        kappa: float,
         verbose=False,
     ):
         self.B_max = B_max
         self.R = R
         self.K = K
-        self.kappa = kappa
         self.rappa = rappa
+        self.kappa = kappa
         self.z0 = 0.5
 
         if verbose:
@@ -119,12 +119,12 @@ class NozzleBField:
 
     def get_B_field(self, r, z):
         """Function to return the B field components at coordinate (r, z)."""
-        B_max, R, K, kappa, rappa, z0 = (
+        B_max, R, K, rappa, kappa, z0 = (
             self.B_max,
             self.R,
             self.K,
-            self.kappa,
             self.rappa,
+            self.kappa,
             self.z0,
         )
 
@@ -147,12 +147,12 @@ class NozzleBField:
     def get_Bx_expression(self, region=Literal["mirror", "expander"]):
         """Just a utility function that can be queried to get the magnetic
         field strength in the x-direction, as input for WarpX."""
-        B_max, R, K, kappa, rappa, z0 = (
+        B_max, R, K, rappa, kappa, z0 = (
             self.B_max,
             self.R,
             self.K,
-            self.kappa,
             self.rappa,
+            self.kappa,
             self.z0,
         )
         match region:
@@ -174,12 +174,12 @@ class NozzleBField:
     def get_By_expression(self, region=Literal["mirror", "expander"]):
         """Just a utility function that can be queried to get the magnetic
         field strength in the y-direction, as input for WarpX."""
-        B_max, R, K, kappa, rappa, z0 = (
+        B_max, R, K, rappa, kappa, z0 = (
             self.B_max,
             self.R,
             self.K,
-            self.kappa,
             self.rappa,
+            self.kappa,
             self.z0,
         )
         match region:
@@ -201,12 +201,12 @@ class NozzleBField:
     def get_Bz_expression(self, region=Literal["mirror", "expander"]):
         """Just a utility function that can be queried to get the magnetic
         field strength in the z-direction, as input for WarpX."""
-        B_max, R, K, kappa, rappa, z0 = (
+        B_max, R, K, rappa, kappa, z0 = (
             self.B_max,
             self.R,
             self.K,
-            self.kappa,
             self.rappa,
+            self.kappa,
             self.z0,
         )
         match region:
@@ -232,9 +232,9 @@ if __name__ == "__main__":
     B_max = 1
     R = 10
     K = 50
-    kappa = 1.0
     rappa = 5.0
-    nozzle = NozzleBField(B_max, R, K, kappa, rappa, True)
+    kappa = 1.0
+    nozzle = NozzleBField(B_max, R, K, rappa, kappa, True)
     r_grid = np.linspace(0, 0.1, 250)
     z_grid = np.linspace(-0.5, 0.5, 500)
     rr, zz = np.meshgrid(r_grid, z_grid)

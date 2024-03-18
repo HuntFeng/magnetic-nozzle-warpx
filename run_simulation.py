@@ -24,16 +24,12 @@ simulation = picmi.Simulation(verbose=1, warpx_amrex_the_arena_is_managed=True)
 #######################################################################
 params = Params()
 # domain size in m
-# params.Lr = 0.01  # has to be smaller than the coil radius
-# params.Lz = 0.10
-params.Lr = 0.1
+params.Lr = 0.1  # has to be smaller than the coil radius
 params.Lz = 1.0
 
 # spatial resolution in number of cells
 params.Nr = 128
 params.Nz = 1024
-# params.Nr = 256
-# params.Nz = 2048
 # params.Nr = 16
 # params.Nz = 32
 
@@ -48,9 +44,6 @@ params.m_i = 400.0 * util.constants.m_e
 # we set the voltage on the divertor side (in units of Te) since that is
 # ultimately what we want to look at
 params.V_divertor = -2.5
-
-# initial seed macroparticle density
-params.nppc_seed = 5  # 800
 
 # total simulation time in ion thermal crossing times
 params.total_time = 1.5
@@ -159,10 +152,10 @@ class MagneticMirror2D(object):
         params.B_max = 1  # T
         params.R = 10
         params.K = 50
-        params.kappa = 1.0
         params.rappa = 5.0
+        params.kappa = 1.0
         b_field = magnetic_field.NozzleBField(
-            params.B_max, params.R, params.K, params.kappa, params.rappa
+            params.B_max, params.R, params.K, params.rappa, params.kappa
         )
         simulation.applied_fields = [
             picmi.AnalyticAppliedField(
@@ -188,31 +181,19 @@ class MagneticMirror2D(object):
         electrons = picmi.Species(
             particle_type="electron",
             name="electrons",
-            # warpx_save_particles_at_zlo=True,
-            # warpx_save_particles_at_zhi=True,
-            # initial_distribution=picmi.UniformDistribution(
-            #     density=params.n0,
-            #     rms_velocity=[util.thermal_velocity(params.T_e, util.constants.m_e)] * 3,
-            # ),
         )
-        electrons.m = params.m_e
 
         ions = picmi.Species(
             particle_type="H",
             name="ions",
             charge_state=1,
             mass=params.m_i,
-            # warpx_save_particles_at_zlo=True,
-            # warpx_save_particles_at_zhi=True,
-            # initial_distribution=picmi.UniformDistribution(
-            #     density=params.n0,
-            #     rms_velocity=[util.thermal_velocity(params.T_i, params.m_i)] * 3,
-            # ),
         )
-        ions.m = params.m_i
 
+        # initial seed macroparticle density
+        nppc_seed = 5  # 800
         layout = picmi.PseudoRandomLayout(
-            n_macroparticles_per_cell=params.nppc_seed, grid=grid
+            n_macroparticles_per_cell=nppc_seed, grid=grid
         )
 
         simulation.add_species(electrons, layout=layout)
@@ -228,7 +209,6 @@ class MagneticMirror2D(object):
         # Particle injection                                                  #
         #######################################################################
 
-        # params.inject_nparts_e = 4000
         params.inject_nparts_e = 400
         r_inject = params.Lr / 2
         area_inject = util.constants.pi * r_inject**2
