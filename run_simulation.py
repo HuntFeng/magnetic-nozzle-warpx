@@ -159,19 +159,10 @@ class MagneticMirror2D(object):
         )
         simulation.applied_fields = [
             picmi.AnalyticAppliedField(
-                Bx_expression=b_field.get_Bx_expression(region="mirror"),
-                By_expression=b_field.get_By_expression(region="mirror"),
-                Bz_expression=b_field.get_Bz_expression(region="mirror"),
-                lower_bound=[-0.1, -0.1, -0.5],
-                upper_bound=[0.1, 0.1, 0],
-            ),
-            picmi.AnalyticAppliedField(
-                Bx_expression=b_field.get_Bx_expression(region="expander"),
-                By_expression=b_field.get_By_expression(region="expander"),
-                Bz_expression=b_field.get_Bz_expression(region="expander"),
-                lower_bound=[-0.1, -0.1, 0],
-                upper_bound=[0.1, 0.1, 0.5],
-            ),
+                Bx_expression=b_field.get_Bx_expression(),
+                By_expression=b_field.get_By_expression(),
+                Bz_expression=b_field.get_Bz_expression(),
+            )
         ]
 
         #######################################################################

@@ -128,23 +128,23 @@ class NozzleBField:
             self.z0,
         )
 
-        B_r = B_max * r * (rappa * (R - 1) * z0**2 * z) / (
+        B_r = r * (rappa * (R - 1) * z0**2 * z) / (
             (R * rappa - 1) * z**2 + z0**2
         ) ** 2 * np.heaviside(-z, 0.5) + r * (kappa * (K - 1) * z0**2 * z) / (
             (K * kappa - 1) * z**2 + z0**2
         ) ** 2 * np.heaviside(
             z, 0.5
         )
-        B_z = B_max * (1.0 + (rappa - 1) * (z / z0) ** 2) / (
+        B_z = (1.0 + (rappa - 1) * (z / z0) ** 2) / (
             1 + (R * rappa - 1) * (z / z0) ** 2
         ) * np.heaviside(-z, 0.5) + (1.0 + (kappa - 1) * (z / z0) ** 2) / (
             1 + (K * kappa - 1) * (z / z0) ** 2
         ) * np.heaviside(
             z, 0.5
         )
-        return B_r, B_z
+        return B_max * B_r, B_max * B_z
 
-    def get_Bx_expression(self, region=Literal["mirror", "expander"]):
+    def get_Bx_expression(self):
         """Just a utility function that can be queried to get the magnetic
         field strength in the x-direction, as input for WarpX."""
         B_max, R, K, rappa, kappa, z0 = (
@@ -155,23 +155,16 @@ class NozzleBField:
             self.kappa,
             self.z0,
         )
-        match region:
-            case "mirror":
-                return (
-                    f"{B_max} * x * ({rappa * (R - 1) * z0**2} * z) / ("
-                    f"{(R * rappa - 1)} * z**2 + {z0**2}"
-                    ") ** 2"
-                )
-            case "expander":
-                return (
-                    f"{B_max} * x * ({kappa * (K - 1) * z0**2} * z) / ("
-                    f"{(K * kappa - 1)} * z**2 + {z0**2}"
-                    ") ** 2"
-                )
-            case _:
-                raise TypeError()
+        # (1+tanh(kz))/2 -> H(x) as k -> inf, where H(x) is the heaviside function
+        return (
+            f"{B_max}*("
+            f"x*({rappa * (R - 1) * z0**2}*z)/({(R * rappa - 1)}*z**2+{z0**2})**2 * (1+tanh(-1e6*z))/2"
+            "+"
+            f"x*({kappa * (K - 1) * z0**2}*z)/({(K * kappa - 1)}*z**2+{z0**2})**2 * (1+tanh(1e6*z))/2"
+            f")"
+        )
 
-    def get_By_expression(self, region=Literal["mirror", "expander"]):
+    def get_By_expression(self):
         """Just a utility function that can be queried to get the magnetic
         field strength in the y-direction, as input for WarpX."""
         B_max, R, K, rappa, kappa, z0 = (
@@ -182,23 +175,16 @@ class NozzleBField:
             self.kappa,
             self.z0,
         )
-        match region:
-            case "mirror":
-                return (
-                    f"{B_max} * y * ({rappa * (R - 1) * z0**2} * z) / ("
-                    f"{(R * rappa - 1)} * z**2 + {z0**2}"
-                    ") ** 2"
-                )
-            case "expander":
-                return (
-                    f"{B_max} * y * ({kappa * (K - 1) * z0**2} * z) / ("
-                    f"{(K * kappa - 1)} * z**2 + {z0**2}"
-                    ") ** 2"
-                )
-            case _:
-                raise TypeError()
+        # (1+tanh(kz))/2 -> H(x) as k -> inf, where H(x) is the heaviside function
+        return (
+            f"{B_max}*("
+            f"y*({rappa * (R - 1) * z0**2}*z)/({(R * rappa - 1)}*z**2+{z0**2})**2 * (1+tanh(-1e6*z))/2"
+            "+"
+            f"y*({kappa * (K - 1) * z0**2}*z)/({(K * kappa - 1)}*z**2+{z0**2})**2 * (1+tanh(1e6*z))/2"
+            f")"
+        )
 
-    def get_Bz_expression(self, region=Literal["mirror", "expander"]):
+    def get_Bz_expression(self):
         """Just a utility function that can be queried to get the magnetic
         field strength in the z-direction, as input for WarpX."""
         B_max, R, K, rappa, kappa, z0 = (
@@ -209,21 +195,14 @@ class NozzleBField:
             self.kappa,
             self.z0,
         )
-        match region:
-            case "mirror":
-                return (
-                    f"{B_max} * (1.0 + ({rappa} - 1) * (z / {z0}) ** 2) / ("
-                    f"1 + ({R * rappa} - 1) * (z / {z0}) ** 2"
-                    ")"
-                )
-            case "expander":
-                return (
-                    f"{B_max} * (1.0 + ({kappa} - 1) * (z / {z0}) ** 2) / ("
-                    f"1 + ({K * kappa} - 1) * (z / {z0}) ** 2"
-                    ")"
-                )
-            case _:
-                raise TypeError()
+        # (1+tanh(kz))/2 -> H(x) as k -> inf, where H(x) is the heaviside function
+        return (
+            f"{B_max}*("
+            f"(1.0+({rappa}-1)*(z/{z0})**2)/(1+({R * rappa}-1)*(z/{z0})**2) * (1+tanh(-1e6*z))/2"
+            "+"
+            f"(1.0+({kappa}-1)*(z/{z0})**2)/(1+({K * kappa}-1)*(z/{z0})**2) * (1+tanh(1e6*z))/2"
+            f")"
+        )
 
 
 if __name__ == "__main__":

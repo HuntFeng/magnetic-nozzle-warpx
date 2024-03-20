@@ -145,3 +145,7 @@ FIXME:
 1. total_time = 1.39*ion_crossing_time
 2. density profile is flatter but does not improve alot
 
+### diags202403181516
+1. use the new magnetic field
+FIXME:
+1. the results look weird, the particles do not follow the magnetic field lines at all

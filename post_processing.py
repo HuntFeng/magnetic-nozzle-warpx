@@ -4,13 +4,13 @@ import os
 import re
 import glob
 import util
+import magnetic_field
 import numpy as np
 import scipy as sp
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from typing import Literal
 from params import Params
-from magnetic_field import CoilBField
 from matplotlib.animation import FuncAnimation
 from tqdm import tqdm
 
@@ -59,6 +59,12 @@ class Analysis:
         self.r = np.linspace(0, self.params.Lr, self.params.Nr)
         self.z = np.linspace(-self.params.Lz / 2, self.params.Lz / 2, self.params.Nz)
         self.Z, self.R = np.meshgrid(self.z, self.r)
+
+        # applied magnetic field
+        self.applied_field = None
+
+    def set_applied_field(self, applied_field):
+        self.applied_field = applied_field
 
     def get_data(self, key: FieldKey, frame: int):
         """Get data with field key at certain frame"""
@@ -311,19 +317,6 @@ class Analysis:
                 norm=colors.LogNorm(vmin=1e14, vmax=2e15),
             )
             fig.colorbar(pm, ax=ax[0], label="$n_e$ (m$^{-3}$)")
-            # stream plot
-            coil = CoilBField(R=self.params.R_coil, B_max=self.params.B_max)
-            Br, Bz = coil.get_B_field(self.R, self.Z)
-            ax[0].streamplot(
-                self.R.T,
-                self.Z.T,
-                Br.T,
-                Bz.T,
-                color="black",
-                minlength=1,
-                linewidth=0.5,
-                arrowsize=0.5,
-            )
             ax[0].set_xlabel("$r$ (m)")
             ax[0].set_ylabel("$z$ (m)")
             ax[0].set_title("$n_e$")
@@ -335,6 +328,26 @@ class Analysis:
                 norm=colors.LogNorm(vmin=1e14, vmax=2e15),
             )
             fig.colorbar(pm, ax=ax[1], label="$n_i$ (m$^{-3}$)")
+            ax[1].set_xlabel("$r$ (m)")
+            ax[1].set_ylabel("$z$ (m)")
+            ax[1].set_title("$n_i$")
+            fig.suptitle(f"$t$={time:.2e}s")
+            fig.tight_layout()
+
+            if self.applied_field == None:
+                return
+            # stream plot
+            Br, Bz = self.applied_field.get_B_field(self.R, self.Z)
+            ax[0].streamplot(
+                self.R.T,
+                self.Z.T,
+                Br.T,
+                Bz.T,
+                color="black",
+                minlength=1,
+                linewidth=0.5,
+                arrowsize=0.5,
+            )
             ax[1].streamplot(
                 self.R.T,
                 self.Z.T,
@@ -345,11 +358,7 @@ class Analysis:
                 linewidth=0.5,
                 arrowsize=0.5,
             )
-            ax[1].set_xlabel("$r$ (m)")
-            ax[1].set_ylabel("$z$ (m)")
-            ax[1].set_title("$n_i$")
-            fig.suptitle(f"$t$={time:.2e}s")
-            fig.tight_layout()
+            fig.show()
         else:
             fig = plt.figure()
             mean_n_e = self.average_along_central_axis(n_e)
@@ -440,9 +449,19 @@ class Analysis:
             fig, ax = plt.subplots(1, 2, sharey=True)
             pm = ax[0].pcolormesh(self.R, self.Z, v_e / v_s, cmap="jet")
             fig.colorbar(pm, label="$v_{ze} / v_s$")
+            ax[0].set_xlabel("$r$ (m)")
+            ax[0].set_ylabel("$z$ (m)")
+            pm = ax[1].pcolormesh(self.R, self.Z, v_i / v_s, cmap="jet")
+            fig.colorbar(pm, label="$v_{zi} / v_s$")
+            ax[1].set_xlabel("$r$ (m)")
+            ax[1].set_ylabel("$z$ (m)")
+            fig.suptitle(f"$t$={time:.2e}s")
+            fig.tight_layout()
+
+            if self.applied_field == None:
+                return
             # stream plot
-            coil = CoilBField(R=self.params.R_coil, B_max=self.params.B_max)
-            Br, Bz = coil.get_B_field(self.R, self.Z)
+            Br, Bz = self.applied_field.get_B_field(self.R, self.Z)
             ax[0].streamplot(
                 self.R.T,
                 self.Z.T,
@@ -453,9 +472,6 @@ class Analysis:
                 linewidth=0.5,
                 arrowsize=0.5,
             )
-            ax[0].set_xlabel("$r$ (m)")
-            ax[0].set_ylabel("$z$ (m)")
-            pm = ax[1].pcolormesh(self.R, self.Z, v_i / v_s, cmap="jet")
             ax[1].streamplot(
                 self.R.T,
                 self.Z.T,
@@ -466,11 +482,6 @@ class Analysis:
                 linewidth=0.5,
                 arrowsize=0.5,
             )
-            fig.colorbar(pm, label="$v_{zi} / v_s$")
-            ax[1].set_xlabel("$r$ (m)")
-            ax[1].set_ylabel("$z$ (m)")
-            fig.suptitle(f"$t$={time:.2e}s")
-            fig.tight_layout()
             fig.show()
         else:
             fig = plt.figure()
@@ -485,21 +496,27 @@ class Analysis:
             fig.show()
 
     def plot_magnetic_field(self):
-        coil = CoilBField(R=self.params.R_coil, B_max=self.params.B_max)
-        Br, Bz = coil.get_B_field(self.R, self.Z)
-
-        fig, ax = plt.subplots(1, 2, sharey=True, figsize=(10, 7))
-        pm = ax[0].pcolormesh(self.R, self.Z, Bz, cmap="Greens")
+        if self.applied_field is None:
+            return
+        Br, Bz = self.applied_field.get_B_field(self.R, self.Z)
+        fig, ax = plt.subplots(1, 1, sharey=True, figsize=(5, 7))
+        pm = ax.pcolormesh(self.R, self.Z, Bz, cmap="Greens")  # ,norm=colors.LogNorm())
         fig.colorbar(pm)
-        ax[0].quiver(self.R, self.Z, Br, Bz)
-        ax[0].set_xlabel(f"$r$ (m)")
-        ax[0].set_ylabel(f"$z$ (m)")
-        ax[0].set_title("$B(r, z)$ (T)")
-        ax[1].plot(Bz[0, :], self.z)
-        ax[1].set_xlabel("|B| (T)")
-        ax[1].set_title("B(0, z)")
-
-        plt.tight_layout()
+        ax.streamplot(
+            self.R.T,
+            self.Z.T,
+            Br.T,
+            Bz.T,
+            density=2,
+            color="black",
+            minlength=1,
+            linewidth=0.75,
+        )
+        ax.set_xlabel(f"$r$ (m)")
+        ax.set_ylabel(f"$z$ (m)")
+        ax.set_title("$B(r, z)$ (T)")
+        ax.set_xlim(self.R.min(), self.R.max())
+        ax.set_ylim(self.Z.min(), self.Z.max())
         fig.show()
 
     def animate_slice(self, field_type: FieldType):
@@ -529,8 +546,9 @@ class Analysis:
             fig.colorbar(pm_e, label="$n_e$")
             fig.colorbar(pm_i, label="$n_i$")
             # stream plot
-            coil = CoilBField(R=self.params.R_coil, B_max=self.params.B_max)
-            Br, Bz = coil.get_B_field(self.R, self.Z)
+            if self.applied_field is None:
+                return
+            Br, Bz = self.applied_field.get_B_field(self.R, self.Z)
             ax[0].streamplot(
                 self.R.T,
                 self.Z.T,
@@ -684,10 +702,21 @@ if __name__ == "__main__":
     else:
         dirname = sys.argv[1]
         analysis = Analysis(dirname)
+        params = analysis.params
+        # R_coil = 0.2620140318064353
+        # applied_field = magnetic_field.CoilBField(R=R_coil, B_max=params.B_max)
+        applied_field = magnetic_field.NozzleBField(
+            B_max=params.B_max,
+            R=params.R,
+            K=params.K,
+            rappa=params.rappa,
+            kappa=params.kappa,
+        )
+        analysis.set_applied_field(applied_field)
         print("Making animes")
-        analysis.animate_line("density")
-        # for field in ["density"]:
-        #     analysis.animate_slice(field)
+        # analysis.animate_line("density")
+        for field in ["density"]:
+            analysis.animate_slice(field)
         # for field in ["density", "potential", "current_density"]:
         #     analysis.animate_line(field)
         print(f"Check animes in {dirname}")
