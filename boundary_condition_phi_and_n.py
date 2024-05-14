@@ -57,7 +57,14 @@ class CurrentFreeBoundaryCondition:
         )
 
     def lower_z(self):
-        pass
+        r0 = self.params.Lr / 2
+        phi0 = 2000
+        self.ext.warpx.set_potential_on_domain_boundary(
+            potential_lo_z=f"{0.5*phi0}*(x**2+y**2)/((x**2+y**2)+{r0**2})"
+        )
+        self.ext.warpx.set_potential_on_domain_boundary(
+            potential_lo_z=f"{0.5*phi0}*r**2/(r**2+{r0**2})"
+        )
 
     def apply_bc(self):
         self.lower_z()

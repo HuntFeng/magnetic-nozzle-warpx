@@ -37,8 +37,10 @@ FieldKey = Literal[
     "mz_ions",
     "mr_electrons",
     "mr_ions",
+    "mt_electrons",
+    "mt_ions",
 ]
-Direction = Literal["r", "z"]
+Direction = Literal["r", "t", "z"]
 PlotType = Literal["slice", "line"]
 FieldType = Literal["density", "potential", "current_density", "momentum"]
 
@@ -127,7 +129,10 @@ class Analysis:
         mx = np.array(f[f"data/{self.steps[frame]}/particles/{species}/momentum/x"])
         my = np.array(f[f"data/{self.steps[frame]}/particles/{species}/momentum/y"])
         mz = np.array(f[f"data/{self.steps[frame]}/particles/{species}/momentum/z"])
-        mr = np.sqrt(mx**2 + my**2)
+        cos = x / r
+        sin = y / r
+        mr = mx * cos + my * sin
+        mt = -mx * sin + my * cos
 
         # logical coordinates and scatter ratios
         # j=int(r/dr), j_frac=(r-rj)/dr where rj=dr*j
@@ -139,7 +144,12 @@ class Analysis:
 
         data = np.zeros((self.params.Nr, self.params.Nz))
         part_per_cell = np.zeros((self.params.Nr, self.params.Nz))
-        m = mr if direction == "r" else mz
+        if direction == "r":
+            m = mr
+        elif direction == "t":
+            m = mt
+        else:
+            m = mz
         for n in tqdm(range(m.size)):
             data[j[n], k[n]] += m[n]
             part_per_cell[j[n], k[n]] += 1
@@ -406,7 +416,7 @@ class Analysis:
         else:
             fig = plt.figure()
             mean_J = self.average_along_central_axis(J)
-            plt.plot(self.z[10:], mean_J[10:])
+            plt.plot(self.z, mean_J)
             plt.xlabel("$z$ (m)")
             plt.ylabel(f"$J_{direction}$" + " (A/m$^{2}$)")
             plt.title(f"$t$={time:.2e}s")
@@ -446,13 +456,24 @@ class Analysis:
         v_i = self.get_data(f"m{direction}_ions", frame) / params.m_i
         v_s = util.ion_sound_velocity(params.T_e, params.T_i, params.m_i)
         if plot_type == "slice":
+            normed_v_e = v_e / v_s
+            normed_v_i = v_i / v_s
             fig, ax = plt.subplots(1, 2, sharey=True)
-            pm = ax[0].pcolormesh(self.R, self.Z, v_e / v_s, cmap="jet")
-            fig.colorbar(pm, label="$v_{ze} / v_s$")
+            # the electron data is too noisy
+            # the scale of electron should be the same of that of ions
+            pm = ax[0].pcolormesh(
+                self.R,
+                self.Z,
+                normed_v_e,
+                cmap="jet",
+                vmin=normed_v_i[~np.isnan(normed_v_i)].min(),
+                vmax=normed_v_i[~np.isnan(normed_v_i)].max(),
+            )
+            fig.colorbar(pm, label=f"$v_{{{direction}e}} / v_s$")
             ax[0].set_xlabel("$r$ (m)")
             ax[0].set_ylabel("$z$ (m)")
-            pm = ax[1].pcolormesh(self.R, self.Z, v_i / v_s, cmap="jet")
-            fig.colorbar(pm, label="$v_{zi} / v_s$")
+            pm = ax[1].pcolormesh(self.R, self.Z, normed_v_i, cmap="jet")
+            fig.colorbar(pm, label=f"$v_{{{direction}i}} / v_s$")
             ax[1].set_xlabel("$r$ (m)")
             ax[1].set_ylabel("$z$ (m)")
             fig.suptitle(f"$t$={time:.2e}s")
@@ -485,10 +506,10 @@ class Analysis:
             fig.show()
         else:
             fig = plt.figure()
-            v_e_norm = self.average_along_central_axis(v_e / v_s)
+            # v_e_norm = self.average_along_central_axis(v_e / v_s)
             v_i_norm = self.average_along_central_axis(v_i / v_s)
-            plt.plot(self.z, v_e_norm, label="$v_{ze} / v_s$")
-            plt.plot(self.z, v_i_norm, label="$v_{zi} / v_s$")
+            # plt.plot(self.z, v_e_norm, label="$v_{ze} / v_s$")
+            plt.plot(self.z, v_i_norm, label=f"$v_{{{direction}i}} / v_s$")
             plt.xlabel("$z$ (m)")
             plt.ylabel("$M$")
             plt.title(f"$t$={time:.2e}s")
@@ -714,9 +735,7 @@ if __name__ == "__main__":
         )
         analysis.set_applied_field(applied_field)
         print("Making animes")
-        # analysis.animate_line("density")
-        for field in ["density"]:
-            analysis.animate_slice(field)
-        # for field in ["density", "potential", "current_density"]:
-        #     analysis.animate_line(field)
+        # analysis.animate_slice("density")
+        for field in ["density", "potential", "current_density"]:
+            analysis.animate_line(field)
         print(f"Check animes in {dirname}")

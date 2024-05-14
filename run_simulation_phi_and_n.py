@@ -8,11 +8,11 @@ import argparse
 import numpy as np
 from pywarpx import callbacks, picmi
 
-from boundary_condition import CurrentFreeBoundaryCondition
+from boundary_condition_phi_and_n import CurrentFreeBoundaryCondition
 
 import util
 import magnetic_field
-import injector
+import injector_phi_and_n as injector
 from params import Params
 
 # warpx_amrex_the_arena_is_managed=True to access fields data in GPU
@@ -48,7 +48,7 @@ params.m_i = 400.0 * util.constants.m_e
 params.V_divertor = -2.5
 
 # total simulation time in ion thermal crossing times
-params.total_time = 2.0  # 1.5
+params.total_time = 1.0
 
 
 #######################################################################
@@ -218,7 +218,7 @@ class MagneticMirror2D(object):
             zmax=-params.Lz / 2.0 + 2.0 * params.dz,
             rmin=0,
             rmax=r_inject,
-            rotate=True,
+            # rotate=True,
         )
 
         params.inject_nparts_i = params.inject_nparts_e
@@ -232,7 +232,7 @@ class MagneticMirror2D(object):
             zmax=-params.Lz / 2.0 + 2.0 * params.dz,
             rmin=0,
             rmax=r_inject,
-            rotate=True,
+            # rotate=True,
         )
 
         callbacks.installparticleinjection(electron_injector.inject_parts)

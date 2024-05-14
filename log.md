@@ -145,7 +145,35 @@ FIXME:
 1. total_time = 1.39*ion_crossing_time
 2. density profile is flatter but does not improve alot
 
-### diags202403181516
+### diags202403201628
 1. use the new magnetic field
+2. total_time = 1.5*ion_crossing_time
 FIXME:
-1. the results look weird, the particles do not follow the magnetic field lines at all
+1. density profile has a bump right before the nozzle throat
+
+### diags202405022248
+1. added rotational injection
+2. total_time = 0.5*ion_crossing_time
+3. v_theta_e ~ T_e, v_theta_i ~ T_i
+4. it seems not much rotation is going on, try to run a longer simulation.
+
+### diags202405031209
+1. total_time = 1*ion_crossing_time
+2. no rotation going on
+
+### diags202405061308
+1. set v_theta = 0.5 v_s
+2. total_time = 1*ion_crossing_time
+FIXME:
+1. cavity formed in electron in the nozzle center
+2. not much rotation is going on
+
+### diags202405131426
+1. set total_time = 2 * ion_crossing_time and see if rotation is formed
+
+### diags20240513 (see if this setup can induce rotation)
+1. shut off rotational injection
+2. set up parabolic density at the entrace
+3. set up non-linear potential at the entrace
+FIXME:
+AMReX does not recognize the positional variables "x,y,r"...
