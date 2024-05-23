@@ -1,3 +1,3 @@
 - [x] run longer simulation with rotational injection
-- [ ] setup parabolic density and non-linear potential at the entrace
+- [x] setup parabolic density and non-linear potential at the entrace
     - hopefully this can generate better rotation in plasma

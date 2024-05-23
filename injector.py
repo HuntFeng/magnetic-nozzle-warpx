@@ -5,6 +5,15 @@ import numpy as np
 from params import Params
 import util
 from pywarpx import picmi, particle_containers, libwarpx
+from scipy.stats import rv_continuous
+
+
+class Parabolic(rv_continuous):
+    """Parabolic distribution"""
+
+    def _pdf(self, r):
+        r0 = self.b
+        return 2 / (np.pi * r0**4) * (-(r**2) + r0**2)
 
 
 class FluxMaxwellian_ZInjector(object):
@@ -40,6 +49,8 @@ class FluxMaxwellian_ZInjector(object):
         # whether or not rotate injection
         self.rotate = rotate
 
+        self.parabolic_dist = Parabolic(a=0, b=params.Lr)
+
     def flux_maxwellian(self, N: int):
         """returns N numbers sampled from flux Maxwellian distribution"""
         return np.sqrt(-2.0 * np.log(1.0 - np.random.rand(N)))
@@ -63,7 +74,8 @@ class FluxMaxwellian_ZInjector(object):
             weight = params.weight_i
         v_s = util.ion_sound_velocity(params.T_e, params.T_i, params.m_i)
         # generate random positions for each particle
-        r = self.rmax * np.sqrt(np.random.rand(nparts_per_proc))
+        # r = self.rmax * np.sqrt(np.random.rand(nparts_per_proc))
+        r = self.parabolic_dist.rvs(size=nparts_per_proc)
         theta = 2 * np.pi * np.random.rand(nparts_per_proc)
         x_pos = r * np.cos(theta)
         y_pos = r * np.sin(theta)

@@ -25,12 +25,10 @@ simulation = picmi.Simulation(verbose=1, warpx_amrex_the_arena_is_managed=True)
 params = Params()
 # domain size in m
 params.Lr = 0.1  # has to be smaller than the coil radius
-# params.Lz = 1.0
 params.Lz = 0.2
 
 # spatial resolution in number of cells
 params.Nr = 128
-# params.Nz = 1024
 params.Nz = 256
 # params.Nr = 16
 # params.Nz = 32
@@ -48,7 +46,7 @@ params.m_i = 400.0 * util.constants.m_e
 params.V_divertor = -2.5
 
 # total simulation time in ion thermal crossing times
-params.total_time = 2.0  # 1.5
+params.total_time = 0.1
 
 
 #######################################################################
@@ -198,6 +196,13 @@ class MagneticMirror2D(object):
         #######################################################################
         # Boundary condition
         #######################################################################
+        r0 = params.Lr / 2
+        phi0 = 2000
+        simulation.embedded_boundary = picmi.EmbeddedBoundary(
+            # z>-Lz/2+dz is the simulation region
+            implicit_function=f"-(z+{params.Lz/2-params.dz})",
+            potential=f"{0.5*phi0}*(x**2+y**2)/((x**2+y**2)+{r0**2})",
+        )
         bc = CurrentFreeBoundaryCondition(simulation.extension, grid, params)
         bc.install()
 
