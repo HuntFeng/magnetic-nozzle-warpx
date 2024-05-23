@@ -54,7 +54,8 @@ cmake -S $warpx_path -B $warpx_path/build -DWarpX_DIMS=RZ \
   -DWARX_MPI=ON \
   -DWarpX_QED=OFF \
   -DWarpX_OPENPMD=ON \
-  -DWarpX_PYTHON=ON
+  -DWarpX_PYTHON=ON \
+  -DWarpX_EB=ON
 
 echo "Build warpx and do pip install"
 cmake --build $warpx_path/build --target pip_install -j 2
