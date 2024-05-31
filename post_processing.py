@@ -735,7 +735,7 @@ if __name__ == "__main__":
         )
         analysis.set_applied_field(applied_field)
         print("Making animes")
-        # analysis.animate_slice("density")
+        analysis.animate_slice("density")
         for field in ["density", "potential", "current_density"]:
             analysis.animate_line(field)
         print(f"Check animes in {dirname}")

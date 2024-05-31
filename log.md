@@ -173,7 +173,66 @@ FIXME:
 
 ### diags20240513 (see if this setup can induce rotation)
 1. shut off rotational injection
-2. set up parabolic density at the entrace
-3. set up non-linear potential at the entrace
+2. set up parabolic density at the injection
+3. set up non-linear potential at the injection
 FIXME:
 AMReX does not recognize the positional variables "x,y,r"...
+
+### diags202405231250
+1. include ratational injection
+2. parabolic density at the injection
+3. non-linear potential at the injection
+FIXME:
+1. ions stuck at the injection region
+2. parabolic distribution does not seem right
+
+### diags202405271610
+1. shut off rotational injection
+2. setup parabolic density profile at the injection
+3. reduce Lz to 0.2
+4. 1 ion crossing time takes 33 mins
+FIXME:
+1. it seems the simulation is not stablize yet? some shock waves are still travelling
+2. the axial velocity profile is off, it is accelerating but does not look similar to theory
+
+### diags202405271810
+1. setup nonlinear potential just before injection
+FIXME:
+1. current density overshoots to positive
+
+### diags202405271853
+1. run sim for 2 ion crossing time
+2. setup parabolic density
+3. setup nonlinear potential
+FIXME:
+1. current control is not optimized yet
+2. axial velocity profile is little off. velocity reaches sonnd speed way before it reaches throat
+
+### diags202405281225
+1. run sim for 2 ion crossing time
+2. setup parabolic density
+3. no non-linear density
+4. want to settle down the shockwaves by running longer simulation and see if the axial velocity profile will converge to the theoretical one
+5. azimuthal speed -0.00724194643387749 Mach
+FIXME:
+1. axial velocity profile looks better but still not close to the theoretical one
+
+### diags202405281615
+1. run sim for 2 ion crossing time
+2. uniform injection density
+3. no non-linear potential
+4. this is a baseline for benchmarking
+5. azimuthal speed 0.0001323520026254291 Mach
+
+### diags202405291225
+1. run sim for 2 ion crossing time
+2. uniform injection density
+3. setup non-linear potential
+4. azimuthal speed -0.00724194643387749 Mach
+
+### diags202405301540
+1. run sim for 2 ion crossing time
+2. parabolic injection density
+3. non-linear potential
+4. diags202405281225, diags202405281615, diags202405291225 and this one are gonna do a comparison
+5. azimuthal speed 0.12378587501685752 Mach

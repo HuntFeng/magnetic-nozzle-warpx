@@ -5,15 +5,6 @@ import numpy as np
 from params import Params
 import util
 from pywarpx import picmi, particle_containers, libwarpx
-from scipy.stats import rv_continuous
-
-
-class Parabolic(rv_continuous):
-    """Parabolic distribution"""
-
-    def _pdf(self, r):
-        r0 = self.b
-        return 2 / (np.pi * r0**4) * (-(r**2) + r0**2)
 
 
 class FluxMaxwellian_ZInjector(object):
@@ -49,7 +40,15 @@ class FluxMaxwellian_ZInjector(object):
         # whether or not rotate injection
         self.rotate = rotate
 
-        self.parabolic_dist = Parabolic(a=0, b=params.Lr)
+        if self.species.name == "electrons":
+            self.v_T = util.thermal_velocity(params.T_e, self.species.mass)
+            self.weight = params.weight_e
+            self.inject_nparts = params.inject_nparts_e
+        else:
+            self.v_T = util.thermal_velocity(params.T_i, self.species.mass)
+            self.weight = params.weight_i
+            self.inject_nparts = params.inject_nparts_i
+        self.v_s = util.ion_sound_velocity(params.T_e, params.T_i, params.m_i)
 
     def flux_maxwellian(self, N: int):
         """returns N numbers sampled from flux Maxwellian distribution"""
@@ -63,19 +62,12 @@ class FluxMaxwellian_ZInjector(object):
         """Function to actually inject the simulation particles."""
         # this line has to be here since libwarpx has no amr object before initialization
         nprocs = libwarpx.amr.ParallelDescriptor.NProcs()
-        params = self.params
-        if self.species.name == "electrons":
-            nparts_per_proc = int(params.inject_nparts_e / nprocs)
-            v_T = util.thermal_velocity(params.T_e, self.species.mass)
-            weight = params.weight_e
-        else:
-            nparts_per_proc = int(params.inject_nparts_i / nprocs)
-            v_T = util.thermal_velocity(params.T_i, self.species.mass)
-            weight = params.weight_i
-        v_s = util.ion_sound_velocity(params.T_e, params.T_i, params.m_i)
+        nparts_per_proc = int(self.inject_nparts / nprocs)
         # generate random positions for each particle
-        # r = self.rmax * np.sqrt(np.random.rand(nparts_per_proc))
-        r = self.parabolic_dist.rvs(size=nparts_per_proc)
+        # r = self.rmax * np.sqrt(np.random.rand(nparts_per_proc))  # uniform
+        r = self.rmax * np.sqrt(
+            1 - np.sqrt(-np.random.rand(nparts_per_proc) + 1)
+        )  # parabolic
         theta = 2 * np.pi * np.random.rand(nparts_per_proc)
         x_pos = r * np.cos(theta)
         y_pos = r * np.sin(theta)
@@ -84,21 +76,21 @@ class FluxMaxwellian_ZInjector(object):
         # sample a Gaussian for the x and y velocities
         if self.rotate:
             # velocity is perpendicular to position vector
-            v = 0.5 * v_s * self.flux_maxwellian(nparts_per_proc)
+            v = 0.5 * self.v_s * self.flux_maxwellian(nparts_per_proc)
             vx_vals = -v * np.sin(theta)
             vy_vals = v * np.cos(theta)
         else:
             # velocity goes radially
             # 1/sqrt(2) is to make v_perp = v_thermal
-            vx_vals = v_T * self.maxwellian(nparts_per_proc) / np.sqrt(2)
-            vy_vals = v_T * self.maxwellian(nparts_per_proc) / np.sqrt(2)
+            vx_vals = self.v_T * self.maxwellian(nparts_per_proc) / np.sqrt(2)
+            vy_vals = self.v_T * self.maxwellian(nparts_per_proc) / np.sqrt(2)
         # we want the particles to have only positive vz values
         # vz_vals = np.abs(np.random.normal(0, self.sigma, nparts_per_proc)) is not okay
         # since most of the particles will then have 0 vz
         # use the random number generator for normal dist. but drop the cos(2*pi*rand) factor
-        vz_vals = self.flux_maxwellian(nparts_per_proc)
+        vz_vals = self.v_T * self.flux_maxwellian(nparts_per_proc)
 
         part_wrapper = particle_containers.ParticleContainerWrapper(self.species.name)
         part_wrapper.add_particles(
-            x=x_pos, y=y_pos, z=z_pos, ux=vx_vals, uy=vy_vals, uz=vz_vals, w=weight
+            x=x_pos, y=y_pos, z=z_pos, ux=vx_vals, uy=vy_vals, uz=vz_vals, w=self.weight
         )

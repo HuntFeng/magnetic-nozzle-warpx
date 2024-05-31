@@ -45,10 +45,10 @@ class CurrentFreeBoundaryCondition:
         grid.potential_zmax = self.phi_arr[-1]
 
         # start current control after 0.7 * total_steps
-        # adjust potential 10 times in the remaining time
-        partition = 0.7
+        # adjust potential 20 times in the remaining time
+        partition = 0.6
         self.start_step = int(partition * params.total_steps)
-        self.adjust_step = int((1 - partition) * params.total_steps / 10)
+        self.adjust_step = int((1 - partition) * params.total_steps / 20)
         print(f"STEP 0, phi_arr={self.phi_arr}")
 
     def upper_z(self):
@@ -97,7 +97,7 @@ class CurrentFreeBoundaryCondition:
             J_prv = self.J_arr[-2]
             phi = self.phi_arr[-1]
             phi_prv = self.phi_arr[-2]
-            if abs(J - J_prv) < 1e-3 or abs(J - self.target_J) < std / 10:
+            if abs(phi - phi_prv) < 1e-3 or abs(J - self.target_J) < std / 10:
                 phi_new = phi
             else:
                 phi_new = phi - (J - self.target_J) * (phi - phi_prv) / (J - J_prv)

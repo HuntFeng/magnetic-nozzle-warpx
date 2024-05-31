@@ -46,7 +46,7 @@ params.m_i = 400.0 * util.constants.m_e
 params.V_divertor = -2.5
 
 # total simulation time in ion thermal crossing times
-params.total_time = 0.1
+params.total_time = 2.0
 
 
 #######################################################################
@@ -101,10 +101,10 @@ class MagneticMirror2D(object):
         #######################################################################
         # Set geometry, boundary conditions and timestep                      #
         #######################################################################
-        warpx_max_grid_size_x = 8 if args.cpu else 64  # 256
-        warpx_max_grid_size_y = 32 if args.cpu else 64  # 256
-        warpx_blocking_factor_x = 4 if args.cpu else 32  # 128
-        warpx_blocking_factor_y = 16 if args.cpu else 32  # 128
+        warpx_max_grid_size_x = 8 if args.cpu else 64
+        warpx_max_grid_size_y = 32 if args.cpu else 256
+        warpx_blocking_factor_x = 4 if args.cpu else 32
+        warpx_blocking_factor_y = 16 if args.cpu else 128
         grid = picmi.CylindricalGrid(
             number_of_cells=[params.Nr, params.Nz],
             warpx_max_grid_size_x=warpx_max_grid_size_x,  # max num_cells in a grid in r direction
@@ -219,11 +219,10 @@ class MagneticMirror2D(object):
         electron_injector = injector.FluxMaxwellian_ZInjector(
             species=electrons,
             params=params,
-            zmin=-params.Lz / 2.0 + 1.0 * params.dz,
-            zmax=-params.Lz / 2.0 + 2.0 * params.dz,
+            zmin=-params.Lz / 2.0 + 2.0 * params.dz,
+            zmax=-params.Lz / 2.0 + 3.0 * params.dz,
             rmin=0,
             rmax=r_inject,
-            rotate=True,
         )
 
         params.inject_nparts_i = params.inject_nparts_e
@@ -233,11 +232,10 @@ class MagneticMirror2D(object):
         ion_injector = injector.FluxMaxwellian_ZInjector(
             species=ions,
             params=params,
-            zmin=-params.Lz / 2.0 + 1.0 * params.dz,
-            zmax=-params.Lz / 2.0 + 2.0 * params.dz,
+            zmin=-params.Lz / 2.0 + 2.0 * params.dz,
+            zmax=-params.Lz / 2.0 + 3.0 * params.dz,
             rmin=0,
             rmax=r_inject,
-            rotate=True,
         )
 
         callbacks.installparticleinjection(electron_injector.inject_parts)

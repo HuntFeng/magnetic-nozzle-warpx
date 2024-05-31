@@ -1,9 +1,8 @@
 #!/bin/bash
-#SBATCH --account=def-ais683
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --time=1:00:00
+#SBATCH --time=2:00:00
 #SBATCH --mem=124G
 #SBATCH --output=slurm_%j.out
 #SBATCH --mail-type=end 
@@ -14,3 +13,4 @@ dirname="diags$(date '+%Y%m%d%H%M')"
 mkdir $dirname
 source warpx.profile --gpu
 srun --gpus-per-task=1 python run_simulation.py -out $dirname -gpu &> $dirname/output_$SLURM_JOB_ID.log
+mv slurm_$SLURM_JOB_ID.out $dirname/slurm_$SLURM_JOB_ID.out
