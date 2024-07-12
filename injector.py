@@ -1,6 +1,7 @@
 """Class to inject particles in a WarpX simulation based on specific source
 distributions."""
 
+from typing import Literal
 import numpy as np
 from params import Params
 import util
@@ -28,6 +29,7 @@ class FluxMaxwellian_ZInjector(object):
         rmin: float,
         rmax: float,
         rotate: bool = False,
+        dist: Literal["uniform", "parabolic"] = "uniform",
     ):
         self.species = species
         self.params = params
@@ -39,6 +41,9 @@ class FluxMaxwellian_ZInjector(object):
 
         # whether or not rotate injection
         self.rotate = rotate
+
+        # whether or not to use parabolic distribution at injection
+        self.dist = dist
 
         if self.species.name == "electrons":
             self.v_T = util.thermal_velocity(params.T_e, self.species.mass)
@@ -64,10 +69,14 @@ class FluxMaxwellian_ZInjector(object):
         nprocs = libwarpx.amr.ParallelDescriptor.NProcs()
         nparts_per_proc = int(self.inject_nparts / nprocs)
         # generate random positions for each particle
-        # r = self.rmax * np.sqrt(np.random.rand(nparts_per_proc))  # uniform
-        r = self.rmax * np.sqrt(
-            1 - np.sqrt(-np.random.rand(nparts_per_proc) + 1)
-        )  # parabolic
+        if self.dist == "uniform":
+            r = self.rmax * np.sqrt(np.random.rand(nparts_per_proc))  # uniform
+        elif self.dist == "parabolic":
+            r = self.rmax * np.sqrt(
+                1 - np.sqrt(-np.random.rand(nparts_per_proc) + 1)
+            )  # parabolic
+        else:
+            raise ValueError("Incorrect distribution type")
         theta = 2 * np.pi * np.random.rand(nparts_per_proc)
         x_pos = r * np.cos(theta)
         y_pos = r * np.sin(theta)

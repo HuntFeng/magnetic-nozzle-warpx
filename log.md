@@ -236,3 +236,9 @@ FIXME:
 3. non-linear potential
 4. diags202405281225, diags202405281615, diags202405291225 and this one are gonna do a comparison
 5. azimuthal speed 0.12378587501685752 Mach
+
+### diags2024050311140
+1. run sim for 5 ion crossing time
+2. uniform injection
+3. no non-linear potential
+4. this one is to explore the effect of size on physics

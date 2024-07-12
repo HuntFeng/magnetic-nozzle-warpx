@@ -26,10 +26,12 @@ params = Params()
 # domain size in m
 params.Lr = 0.1  # has to be smaller than the coil radius
 params.Lz = 0.2
+# params.Lz = 1.0
 
 # spatial resolution in number of cells
 params.Nr = 128
 params.Nz = 256
+# params.Nz = 1024
 # params.Nr = 16
 # params.Nz = 32
 
@@ -46,7 +48,7 @@ params.m_i = 400.0 * util.constants.m_e
 params.V_divertor = -2.5
 
 # total simulation time in ion thermal crossing times
-params.total_time = 2.0
+params.total_time = 5
 
 
 #######################################################################
@@ -101,9 +103,13 @@ class MagneticMirror2D(object):
         #######################################################################
         # Set geometry, boundary conditions and timestep                      #
         #######################################################################
-        warpx_max_grid_size_x = 8 if args.cpu else 64
+        # warpx_max_grid_size_x = 8 if args.cpu else 64
+        # warpx_max_grid_size_y = 32 if args.cpu else 256
+        # warpx_blocking_factor_x = 4 if args.cpu else 32
+        # warpx_blocking_factor_y = 16 if args.cpu else 128
+        warpx_max_grid_size_x = 8 if args.cpu else 256
         warpx_max_grid_size_y = 32 if args.cpu else 256
-        warpx_blocking_factor_x = 4 if args.cpu else 32
+        warpx_blocking_factor_x = 4 if args.cpu else 128
         warpx_blocking_factor_y = 16 if args.cpu else 128
         grid = picmi.CylindricalGrid(
             number_of_cells=[params.Nr, params.Nz],
@@ -196,13 +202,13 @@ class MagneticMirror2D(object):
         #######################################################################
         # Boundary condition
         #######################################################################
-        r0 = params.Lr / 2
-        phi0 = 2000
-        simulation.embedded_boundary = picmi.EmbeddedBoundary(
-            # z>-Lz/2+dz is the simulation region
-            implicit_function=f"-(z+{params.Lz/2-params.dz})",
-            potential=f"{0.5*phi0}*(x**2+y**2)/((x**2+y**2)+{r0**2})",
-        )
+        # r0 = params.Lr / 2
+        # phi0 = 2000
+        # simulation.embedded_boundary = picmi.EmbeddedBoundary(
+        #     # z>-Lz/2+dz is the simulation region
+        #     implicit_function=f"-(z+{params.Lz/2-params.dz})",
+        #     potential=f"{0.5*phi0}*(x**2+y**2)/((x**2+y**2)+{r0**2})",
+        # )
         bc = CurrentFreeBoundaryCondition(simulation.extension, grid, params)
         bc.install()
 
@@ -223,6 +229,7 @@ class MagneticMirror2D(object):
             zmax=-params.Lz / 2.0 + 3.0 * params.dz,
             rmin=0,
             rmax=r_inject,
+            # dist="parabolic",
         )
 
         params.inject_nparts_i = params.inject_nparts_e
@@ -236,6 +243,7 @@ class MagneticMirror2D(object):
             zmax=-params.Lz / 2.0 + 3.0 * params.dz,
             rmin=0,
             rmax=r_inject,
+            # dist="parabolic",
         )
 
         callbacks.installparticleinjection(electron_injector.inject_parts)

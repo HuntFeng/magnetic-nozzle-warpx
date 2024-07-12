@@ -49,7 +49,7 @@ fi
 echo "Remove build cache"
 rm -rf $warpx_path/build
 echo "Compile warpx with branch $(cd $warpx_path; git rev-parse --abbrev-ref HEAD)"
-cmake -S $warpx_path -B $warpx_path/build -DWarpX_DIMS=RZ \
+cmake -S $warpx_path -B $warpx_path/build -DWarpX_DIMS="2;RZ" \
   -DWarpX_COMPUTE=$backend \
   -DWARX_MPI=ON \
   -DWarpX_QED=OFF \
